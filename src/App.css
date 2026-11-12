@@ -455,3 +455,33 @@ button {
   font-size: 28px;
   margin: 16px 0;
 }
+
+
+/* Paso 6: control de gastos */
+
+.expense-summary {
+  background: #eaf1fb !important;
+  border: 1px solid #d5e3f5;
+}
+
+.expense-summary h1 {
+  color: #1d4e8f !important;
+  font-size: 34px;
+}
+
+.expense-category {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.expense-category strong {
+  color: #172b49 !important;
+}
+
+.transaction-category {
+  color: #1d4e8f !important;
+  font-size: 12px;
+  font-weight: 600;
+}

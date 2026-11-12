@@ -1,4 +1,4 @@
-
+ 
 import { useState, type FormEvent } from 'react'
 import './App.css'
 
@@ -13,11 +13,19 @@ type Screen =
   | 'make-payment'
   | 'savings'
 
+type ExpenseCategory =
+  | 'Comida'
+  | 'Transporte'
+  | 'Educación'
+  | 'Entretenimiento'
+  | 'Otros'
+
 type Transaction = {
   id: number
   date: string
   description: string
   amountCents: number
+  category?: ExpenseCategory
   type:
     | 'transfer-in'
     | 'purchase'
@@ -78,6 +86,7 @@ function App() {
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showTransactions, setShowTransactions] = useState(false)
 
   const formatMoney = (cents: number) =>
     new Intl.NumberFormat('es-MX', {
@@ -95,16 +104,49 @@ function App() {
     setActiveAccount(updatedAccount)
   }
 
+  const categorizeExpense = (merchant: string): ExpenseCategory => {
+    const name = merchant.toLowerCase()
+
+    const matches = (keywords: string[]) =>
+      keywords.some(keyword => name.includes(keyword))
+
+    if (matches([
+      'starbucks', 'cafe', 'café', 'restaurante', 'restaurant',
+      'comida', 'tacos', 'pizza', 'burger', 'mcdonald', 'subway',
+      'sushi', 'superama', 'walmart', 'oxxo', '7-eleven',
+    ])) return 'Comida'
+
+    if (matches([
+      'uber', 'didi', 'taxi', 'metro', 'camion', 'autobus',
+      'autobús', 'gasolina', 'pemex', 'estacionamiento',
+    ])) return 'Transporte'
+
+    if (matches([
+      'libreria', 'librería', 'gandhi', 'libro', 'papeleria',
+      'papelería', 'universidad', 'colegiatura', 'curso',
+      'udemy', 'material escolar',
+    ])) return 'Educación'
+
+    if (matches([
+      'cinepolis', 'cinépolis', 'cinemark', 'netflix', 'spotify',
+      'concierto', 'teatro', 'videojuego', 'steam', 'disney',
+    ])) return 'Entretenimiento'
+
+    return 'Otros'
+  }
+
   const createTransaction = (
     description: string,
     amountCents: number,
-    type: Transaction['type']
+    type: Transaction['type'],
+    category?: ExpenseCategory
   ): Transaction => ({
     id: Date.now(),
     date: new Date().toISOString(),
     description,
     amountCents,
     type,
+    ...(category ? { category } : {}),
   })
 
   const parseAmount = (value: string): number | null => {
@@ -269,10 +311,13 @@ function App() {
       return
     }
 
+    const category = categorizeExpense(purchaseMerchant)
+
     const transaction = createTransaction(
       `Compra en ${purchaseMerchant.trim()}`,
       amountCents,
-      'purchase'
+      'purchase',
+      category
     )
 
     const updatedAccount: SavedAccount = {
@@ -389,6 +434,37 @@ function App() {
   }
 
   const currentSavings = activeAccount?.savingsCents || 0
+
+  const currentMonthPurchases = (activeAccount?.transactions || []).filter(transaction => {
+    const transactionDate = new Date(transaction.date)
+    const now = new Date()
+
+    return (
+      transaction.type === 'purchase' &&
+      transactionDate.getMonth() === now.getMonth() &&
+      transactionDate.getFullYear() === now.getFullYear()
+    )
+  })
+
+  const monthlyExpenseCents = currentMonthPurchases.reduce(
+    (total, transaction) => total + transaction.amountCents,
+    0
+  )
+
+  const expenseCategories: ExpenseCategory[] = [
+    'Comida',
+    'Transporte',
+    'Educación',
+    'Entretenimiento',
+    'Otros',
+  ]
+
+  const categoryExpenses = expenseCategories.map(category => ({
+    category,
+    amountCents: currentMonthPurchases
+      .filter(transaction => transaction.category === category)
+      .reduce((total, transaction) => total + transaction.amountCents, 0),
+  }))
 
   return (
     <main className="page">
@@ -960,38 +1036,81 @@ function App() {
               </div>
             </div>
 
-            <h2>Movimientos recientes</h2>
+            <p className="eyebrow">PASO 6 · CONTROL DE GASTOS</p>
+            <h2>Resumen de gastos del mes</h2>
 
-            {(activeAccount.transactions || []).length === 0 ? (
-              <p className="security">
-                Todavía no tienes movimientos. Cuando recibas dinero,
-                aparecerá aquí.
-              </p>
-            ) : (
-              (activeAccount.transactions || []).map(transaction => {
-                const isIncome =
-                  transaction.type === 'transfer-in' ||
-                  transaction.type === 'savings-withdrawal' ||
-                  transaction.type === 'savings-interest'
+            <div className="verification expense-summary">
+              <div>
+                <strong>Total gastado este mes</strong>
+                <h1>{formatMoney(monthlyExpenseCents)}</h1>
+                <p>Compras registradas durante el mes actual.</p>
+              </div>
+            </div>
 
-                return (
-                  <div className="verification" key={transaction.id}>
-                    <div>
-                      <strong>{transaction.description}</strong>
-                      <p>
-                        {new Date(transaction.date).toLocaleDateString('es-MX')}
-                      </p>
-                    </div>
+            <h2>Gastos por categoría</h2>
 
-                    <strong style={{
-                      color: isIncome ? '#128A5D' : '#C8272E',
-                    }}>
-                      {isIncome ? '+' : '-'}
-                      {formatMoney(transaction.amountCents)}
-                    </strong>
-                  </div>
-                )
-              })
+            {categoryExpenses.map(item => (
+              <div className="verification expense-category" key={item.category}>
+                <div>
+                  <strong>{item.category}</strong>
+                  <p>
+                    {currentMonthPurchases.filter(
+                      transaction => transaction.category === item.category
+                    ).length} compras
+                  </p>
+                </div>
+                <strong>{formatMoney(item.amountCents)}</strong>
+              </div>
+            ))}
+
+            <button
+              type="button"
+              className="secondary-button"
+              aria-expanded={showTransactions}
+              onClick={() => setShowTransactions(current => !current)}
+            >
+              {showTransactions ? 'Ocultar movimientos recientes ↑' : 'Ver movimientos recientes ↓'}
+            </button>
+
+            {showTransactions && (
+              <div className="transactions-panel">
+                {(activeAccount.transactions || []).length === 0 ? (
+                  <p className="security">
+                    Todavía no tienes movimientos. Cuando recibas dinero,
+                    aparecerá aquí.
+                  </p>
+                ) : (
+                  (activeAccount.transactions || []).map(transaction => {
+                    const isIncome =
+                      transaction.type === 'transfer-in' ||
+                      transaction.type === 'savings-withdrawal' ||
+                      transaction.type === 'savings-interest'
+
+                    return (
+                      <div className="verification" key={transaction.id}>
+                        <div>
+                          <strong>{transaction.description}</strong>
+                          <p>
+                            {new Date(transaction.date).toLocaleDateString('es-MX')}
+                          </p>
+                          {transaction.type === 'purchase' && (
+                            <p className="transaction-category">
+                              Categoría: {transaction.category || 'Sin categoría (movimiento anterior)'}
+                            </p>
+                          )}
+                        </div>
+
+                        <strong style={{
+                          color: isIncome ? '#128A5D' : '#C8272E',
+                        }}>
+                          {isIncome ? '+' : '-'}
+                          {formatMoney(transaction.amountCents)}
+                        </strong>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             )}
 
             <h2>Tu cuenta</h2>
