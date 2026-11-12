@@ -406,3 +406,52 @@ button {
   background: #dce8f8;
 }
 
+
+/* CORRECCIÓN DE CONTRASTE: resumen y ahorro Kampus */
+
+.dashboard h1,
+.dashboard h2 {
+  color: #172b49 !important;
+  opacity: 1 !important;
+}
+
+.dashboard .verification h1,
+.dashboard .verification h2 {
+  color: #172b49 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #172b49 !important;
+}
+
+.dashboard > h2 {
+  color: #172b49 !important;
+  opacity: 1 !important;
+  margin-top: 24px;
+  margin-bottom: 16px;
+}
+
+.dashboard .verification strong {
+  color: #172b49 !important;
+  opacity: 1 !important;
+}
+
+.dashboard .verification p {
+  color: #718096 !important;
+  opacity: 1 !important;
+}
+
+.dashboard .verification {
+  background: #f4f6fa;
+  border-radius: 16px;
+  padding: 22px;
+  margin: 16px 0;
+}
+
+.dashboard .verification h1 {
+  font-size: 36px;
+  margin: 18px 0;
+}
+
+.dashboard .verification h2 {
+  font-size: 28px;
+  margin: 16px 0;
+}

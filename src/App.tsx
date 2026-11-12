@@ -11,13 +11,19 @@ type Screen =
   | 'dashboard'
   | 'receive-money'
   | 'make-payment'
+  | 'savings'
 
 type Transaction = {
   id: number
   date: string
   description: string
   amountCents: number
-  type: 'transfer-in' | 'purchase'
+  type:
+    | 'transfer-in'
+    | 'purchase'
+    | 'savings-deposit'
+    | 'savings-withdrawal'
+    | 'savings-interest'
 }
 
 type SavedAccount = {
@@ -26,11 +32,13 @@ type SavedAccount = {
   password: string
   clabe: string
   balanceCents: number
+  savingsCents?: number
   opened: boolean
   transactions?: Transaction[]
 }
 
 const STORAGE_KEY = 'kampus_demo_accounts'
+const ANNUAL_RATE = 0.05
 
 function getAccounts(): SavedAccount[] {
   try {
@@ -65,6 +73,9 @@ function App() {
   const [purchaseAmount, setPurchaseAmount] = useState('')
   const [purchaseMerchant, setPurchaseMerchant] = useState('')
 
+  const [savingsAmount, setSavingsAmount] = useState('')
+  const [savingsAction, setSavingsAction] = useState<'deposit' | 'withdraw'>('deposit')
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -73,6 +84,38 @@ function App() {
       style: 'currency',
       currency: 'MXN',
     }).format(cents / 100)
+
+  const updateAccount = (updatedAccount: SavedAccount) => {
+    const updatedAccounts = accounts.map(account =>
+      account.phone === updatedAccount.phone ? updatedAccount : account
+    )
+
+    saveAccounts(updatedAccounts)
+    setAccounts(updatedAccounts)
+    setActiveAccount(updatedAccount)
+  }
+
+  const createTransaction = (
+    description: string,
+    amountCents: number,
+    type: Transaction['type']
+  ): Transaction => ({
+    id: Date.now(),
+    date: new Date().toISOString(),
+    description,
+    amountCents,
+    type,
+  })
+
+  const parseAmount = (value: string): number | null => {
+    if (!/^\d+(\.\d{1,2})?$/.test(value.trim())) return null
+
+    const cents = Math.round(Number(value) * 100)
+
+    if (!Number.isSafeInteger(cents) || cents <= 0) return null
+
+    return cents
+  }
 
   const handleRegister = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -157,6 +200,7 @@ function App() {
         password,
         clabe: '000000000000000000',
         balanceCents: 0,
+        savingsCents: 0,
         opened: true,
         transactions: [],
       }
@@ -173,30 +217,20 @@ function App() {
 
   const handleReceiveMoney = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
     if (!activeAccount) return
 
-    const validAmount = /^\d+(\.\d{1,2})?$/
+    const amountCents = parseAmount(receiveAmount)
 
-    if (!validAmount.test(receiveAmount.trim())) {
+    if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
 
-    const amountCents = Math.round(Number(receiveAmount) * 100)
-
-    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
-      setError('El monto debe ser mayor a cero.')
-      return
-    }
-
-    const transaction: Transaction = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      description: receiveSender.trim() || 'Transferencia recibida',
+    const transaction = createTransaction(
+      receiveSender.trim() || 'Transferencia recibida',
       amountCents,
-      type: 'transfer-in',
-    }
+      'transfer-in'
+    )
 
     const updatedAccount: SavedAccount = {
       ...activeAccount,
@@ -207,14 +241,7 @@ function App() {
       ],
     }
 
-    const updatedAccounts = accounts.map(account =>
-      account.phone === activeAccount.phone ? updatedAccount : account
-    )
-
-    saveAccounts(updatedAccounts)
-    setAccounts(updatedAccounts)
-    setActiveAccount(updatedAccount)
-
+    updateAccount(updatedAccount)
     setReceiveAmount('')
     setReceiveSender('')
     setError('')
@@ -223,25 +250,17 @@ function App() {
 
   const handlePayment = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-
     if (!activeAccount) return
 
-    const validAmount = /^\d+(\.\d{1,2})?$/
+    const amountCents = parseAmount(purchaseAmount)
 
     if (!purchaseMerchant.trim()) {
       setError('Ingresa el nombre del comercio.')
       return
     }
 
-    if (!validAmount.test(purchaseAmount.trim())) {
+    if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
-      return
-    }
-
-    const amountCents = Math.round(Number(purchaseAmount) * 100)
-
-    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
-      setError('El monto debe ser mayor a cero.')
       return
     }
 
@@ -250,13 +269,11 @@ function App() {
       return
     }
 
-    const transaction: Transaction = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      description: `Compra en ${purchaseMerchant.trim()}`,
+    const transaction = createTransaction(
+      `Compra en ${purchaseMerchant.trim()}`,
       amountCents,
-      type: 'purchase',
-    }
+      'purchase'
+    )
 
     const updatedAccount: SavedAccount = {
       ...activeAccount,
@@ -267,18 +284,100 @@ function App() {
       ],
     }
 
-    const updatedAccounts = accounts.map(account =>
-      account.phone === activeAccount.phone ? updatedAccount : account
-    )
-
-    saveAccounts(updatedAccounts)
-    setAccounts(updatedAccounts)
-    setActiveAccount(updatedAccount)
-
+    updateAccount(updatedAccount)
     setPurchaseAmount('')
     setPurchaseMerchant('')
     setError('')
     setScreen('dashboard')
+  }
+
+  const handleSavingsMovement = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!activeAccount) return
+
+    const amountCents = parseAmount(savingsAmount)
+
+    if (amountCents === null) {
+      setError('Ingresa un monto válido con máximo dos decimales.')
+      return
+    }
+
+    const currentSavings = activeAccount.savingsCents || 0
+
+    if (savingsAction === 'deposit' && amountCents > activeAccount.balanceCents) {
+      setError('No tienes suficiente saldo disponible para ahorrar.')
+      return
+    }
+
+    if (savingsAction === 'withdraw' && amountCents > currentSavings) {
+      setError('No tienes suficiente dinero en tu apartado de ahorro.')
+      return
+    }
+
+    const isDeposit = savingsAction === 'deposit'
+
+    const transaction = createTransaction(
+      isDeposit ? 'Dinero apartado en ahorro' : 'Retiro de ahorro',
+      amountCents,
+      isDeposit ? 'savings-deposit' : 'savings-withdrawal'
+    )
+
+    const updatedAccount: SavedAccount = {
+      ...activeAccount,
+      balanceCents: isDeposit
+        ? activeAccount.balanceCents - amountCents
+        : activeAccount.balanceCents + amountCents,
+      savingsCents: isDeposit
+        ? currentSavings + amountCents
+        : currentSavings - amountCents,
+      transactions: [
+        transaction,
+        ...(activeAccount.transactions || []),
+      ],
+    }
+
+    updateAccount(updatedAccount)
+    setSavingsAmount('')
+    setError('')
+    setScreen('dashboard')
+  }
+
+  const handleSimulateInterest = () => {
+    if (!activeAccount) return
+
+    const currentSavings = activeAccount.savingsCents || 0
+
+    if (currentSavings <= 0) {
+      setError('Primero necesitas tener dinero en tu apartado de ahorro.')
+      return
+    }
+
+    const monthlyInterest = Math.round(
+      currentSavings * ANNUAL_RATE / 12
+    )
+
+    if (monthlyInterest <= 0) {
+      setError('El rendimiento simulado es menor a un centavo.')
+      return
+    }
+
+    const transaction = createTransaction(
+      'Rendimiento simulado de un mes',
+      monthlyInterest,
+      'savings-interest'
+    )
+
+    const updatedAccount: SavedAccount = {
+      ...activeAccount,
+      savingsCents: currentSavings + monthlyInterest,
+      transactions: [
+        transaction,
+        ...(activeAccount.transactions || []),
+      ],
+    }
+
+    updateAccount(updatedAccount)
+    setError('')
   }
 
   const handleLogout = () => {
@@ -288,6 +387,8 @@ function App() {
     setError('')
     setScreen('login')
   }
+
+  const currentSavings = activeAccount?.savingsCents || 0
 
   return (
     <main className="page">
@@ -349,9 +450,7 @@ function App() {
               </button>
             </form>
 
-            <p className="security">
-              ¿Todavía no tienes cuenta?
-            </p>
+            <p className="security">¿Todavía no tienes cuenta?</p>
             <button
               className="secondary-button"
               onClick={() => {
@@ -534,7 +633,6 @@ function App() {
           <div className="dashboard">
             <p className="eyebrow">PASO 3 · RECEPCIÓN DE DINERO</p>
             <h1>Recibe dinero en Kampus.</h1>
-
             <p className="subtitle">
               Simula una transferencia recibida en tu cuenta.
             </p>
@@ -601,21 +699,18 @@ function App() {
           <div className="dashboard">
             <p className="eyebrow">PASO 4 · PAGO CON TARJETA</p>
             <h1>Paga con tu tarjeta Kampus.</h1>
-
             <p className="subtitle">
               Simula una compra en un establecimiento.
             </p>
 
-            <div
-              style={{
-                background: '#153B70',
-                color: '#FFFFFF',
-                padding: '24px',
-                borderRadius: '18px',
-                margin: '20px 0',
-                textAlign: 'left',
-              }}
-            >
+            <div style={{
+              background: '#153B70',
+              color: '#FFFFFF',
+              padding: '24px',
+              borderRadius: '18px',
+              margin: '20px 0',
+              textAlign: 'left',
+            }}>
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -700,6 +795,139 @@ function App() {
           </div>
         )}
 
+        {screen === 'savings' && activeAccount && (
+          <div className="dashboard">
+            <p className="eyebrow">PASO 5 · AHORRO</p>
+            <h1>Haz crecer tu ahorro.</h1>
+            <p className="subtitle">
+              Separa dinero y consulta tu rendimiento simulado.
+            </p>
+
+            <div className="verification">
+              <div>
+                <strong>Dinero en ahorro</strong>
+                <h1>{formatMoney(currentSavings)}</h1>
+                <p>Saldo de ahorro de demostración</p>
+              </div>
+            </div>
+
+            <div className="verification">
+              <div>
+                <strong>Rendimiento anual ilustrativo</strong>
+                <h2>5% anual</h2>
+                <p>Tasa hipotética para esta demostración.</p>
+              </div>
+            </div>
+
+            <div className="verification">
+              <div>
+                <strong>Saldo disponible para gastar</strong>
+                <h2>{formatMoney(activeAccount.balanceCents)}</h2>
+              </div>
+            </div>
+
+            <h2>Administrar mi ahorro</h2>
+
+            <div style={{
+              display: 'flex',
+              gap: '8px',
+              margin: '16px 0',
+            }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setSavingsAction('deposit')
+                  setError('')
+                }}
+                style={{
+                  flex: 1,
+                  background: savingsAction === 'deposit' ? '#1D4E8F' : '#E8EDF4',
+                  color: savingsAction === 'deposit' ? '#FFFFFF' : '#172B49',
+                }}
+              >
+                Ahorrar
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setSavingsAction('withdraw')
+                  setError('')
+                }}
+                style={{
+                  flex: 1,
+                  background: savingsAction === 'withdraw' ? '#1D4E8F' : '#E8EDF4',
+                  color: savingsAction === 'withdraw' ? '#FFFFFF' : '#172B49',
+                }}
+              >
+                Retirar
+              </button>
+            </div>
+
+            <form onSubmit={handleSavingsMovement} noValidate>
+              <label htmlFor="savingsAmount">
+                {savingsAction === 'deposit'
+                  ? 'Monto que quieres ahorrar (MXN)'
+                  : 'Monto que quieres retirar (MXN)'}
+              </label>
+
+              <input
+                id="savingsAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Ej. 200.00"
+                value={savingsAmount}
+                onChange={e => {
+                  setSavingsAmount(e.target.value)
+                  setError('')
+                }}
+              />
+
+              {error && <p className="error" role="alert">{error}</p>}
+
+              <button type="submit">
+                {savingsAction === 'deposit'
+                  ? 'Apartar dinero en ahorro →'
+                  : 'Retirar dinero de ahorro →'}
+              </button>
+            </form>
+
+            <div className="verification">
+              <div>
+                <strong>Simulación de rendimiento</strong>
+                <p>
+                  Calcula un mes de rendimiento sobre tu ahorro actual.
+                </p>
+                <p>
+                  El cálculo utiliza la tasa anual ilustrativa del 5% dividida entre 12.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleSimulateInterest}
+              disabled={currentSavings <= 0}
+            >
+              Simular rendimiento de un mes
+            </button>
+
+            <p className="security">
+              Rendimiento ficticio. No representa una tasa ofrecida ni garantizada.
+            </p>
+
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setError('')
+                setScreen('dashboard')
+              }}
+            >
+              Regresar a mi cuenta
+            </button>
+          </div>
+        )}
+
         {screen === 'dashboard' && activeAccount && (
           <div className="dashboard">
             <p className="eyebrow">TU CUENTA KAMPUS</p>
@@ -713,6 +941,14 @@ function App() {
                 <strong>Saldo disponible</strong>
                 <h1>{formatMoney(activeAccount.balanceCents)}</h1>
                 <p>Pesos mexicanos · Saldo de demostración</p>
+              </div>
+            </div>
+
+            <div className="verification">
+              <div>
+                <strong>Dinero en ahorro</strong>
+                <h2>{formatMoney(currentSavings)}</h2>
+                <p>Rendimiento ilustrativo del 5% anual.</p>
               </div>
             </div>
 
@@ -732,27 +968,30 @@ function App() {
                 aparecerá aquí.
               </p>
             ) : (
-              (activeAccount.transactions || []).map(transaction => (
-                <div className="verification" key={transaction.id}>
-                  <div>
-                    <strong>{transaction.description}</strong>
-                    <p>
-                      {new Date(transaction.date).toLocaleDateString('es-MX')}
-                    </p>
-                  </div>
+              (activeAccount.transactions || []).map(transaction => {
+                const isIncome =
+                  transaction.type === 'transfer-in' ||
+                  transaction.type === 'savings-withdrawal' ||
+                  transaction.type === 'savings-interest'
 
-                  <strong
-                    style={{
-                      color: transaction.type === 'transfer-in'
-                        ? '#128A5D'
-                        : '#C8272E',
-                    }}
-                  >
-                    {transaction.type === 'transfer-in' ? '+' : '-'}
-                    {formatMoney(transaction.amountCents)}
-                  </strong>
-                </div>
-              ))
+                return (
+                  <div className="verification" key={transaction.id}>
+                    <div>
+                      <strong>{transaction.description}</strong>
+                      <p>
+                        {new Date(transaction.date).toLocaleDateString('es-MX')}
+                      </p>
+                    </div>
+
+                    <strong style={{
+                      color: isIncome ? '#128A5D' : '#C8272E',
+                    }}>
+                      {isIncome ? '+' : '-'}
+                      {formatMoney(transaction.amountCents)}
+                    </strong>
+                  </div>
+                )
+              })
             )}
 
             <h2>Tu cuenta</h2>
@@ -770,6 +1009,14 @@ function App() {
 
             <button onClick={() => setScreen('make-payment')}>
               Pagar con tarjeta →
+            </button>
+
+            <button onClick={() => {
+              setSavingsAction('deposit')
+              setError('')
+              setScreen('savings')
+            }}>
+              Mi ahorro →
             </button>
 
             <button className="secondary-button" onClick={handleLogout}>
