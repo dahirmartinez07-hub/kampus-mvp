@@ -69,3 +69,25 @@ Registro de sesiones de trabajo con IA en este proyecto. Cada entrada documenta 
 - Mantener la verificación de identidad en modo demostración, sin realizar un proceso real de KYC.
 - Dar por terminado el primer avance funcional del registro.
 - Guardar el avance con el commit `26c1903`, con el mensaje "Primer avance: registro funcional de Kampus".
+
+## Entrada 4 — 11 de noviembre de 2026
+
+**Objetivo:** continuar el desarrollo del MVP de Kampus, ampliar las funciones principales de la cuenta digital y comprobar que el proyecto pueda compilarse correctamente.
+
+**Qué hizo la IA:**
+
+- Ayudó a implementar la recepción de dinero mediante transferencias simuladas, actualizando el saldo disponible y registrando los movimientos.
+- Desarrolló la función de pagos con tarjeta en modo demostración, incluyendo la validación de saldo suficiente antes de realizar un pago.
+- Incorporó un apartado de ahorro que permite mover dinero entre el saldo disponible y el ahorro.
+- Implementó una simulación de rendimientos mensuales sobre el ahorro, utilizando una tasa anual ilustrativa del 5%.
+- Agregó la clasificación automática de gastos por categorías, como comida, transporte, educación, entretenimiento y otros, mediante reglas basadas en palabras clave.
+- Incorporó un resumen de gastos del mes y la opción de consultar u ocultar los movimientos recientes.
+- Realizó ajustes visuales para mejorar el contraste, la legibilidad y la presentación del resumen de la cuenta.
+
+**Qué decidió el equipo:**
+
+- Mantener las transferencias, los pagos y los rendimientos como simulaciones, sin conectarse a servicios bancarios reales.
+- Incorporar el apartado de ahorro y el control de gastos como parte de las funciones del prototipo.
+- Mostrar los movimientos recientes únicamente cuando el usuario seleccione esa opción, para mantener el panel principal más limpio.
+- Mantener la clasificación de gastos mediante reglas por palabras clave, sin presentarla como inteligencia artificial.
+- Continuar desarrollando el MVP como un prototipo académico y no como una aplicación bancaria lista para operar.
