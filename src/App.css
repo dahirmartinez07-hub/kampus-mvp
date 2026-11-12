@@ -309,3 +309,56 @@ input::placeholder {
 .phone-input span {
   color: #52647b !important;
 }
+
+
+/* Mejoras de interacción y accesibilidad */
+
+input[type="text"]:focus,
+input[type="tel"]:focus {
+  border: 1px solid #1d4e8f;
+  box-shadow: 0 0 0 3px rgba(29, 78, 143, 0.12);
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid rgba(29, 78, 143, 0.3);
+  outline-offset: 3px;
+}
+
+button:disabled {
+  background: #718096;
+  cursor: not-allowed;
+  opacity: 0.8;
+}
+
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.error {
+  background: #fff0f0;
+  border: 1px solid #f3c5c5;
+  border-radius: 8px;
+  padding: 11px 12px;
+  line-height: 1.5;
+}
+
+button {
+  transition: background 0.2s ease, opacity 0.2s ease;
+}
+
+@media (max-width: 390px) {
+  .register-card {
+    padding: 24px 18px;
+  }
+
+  h1 {
+    font-size: 25px;
+  }
+
+  .demo {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+}
