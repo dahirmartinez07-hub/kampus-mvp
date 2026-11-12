@@ -10,13 +10,14 @@ type Screen =
   | 'account-opened'
   | 'dashboard'
   | 'receive-money'
+  | 'make-payment'
 
 type Transaction = {
   id: number
   date: string
   description: string
   amountCents: number
-  type: 'transfer-in'
+  type: 'transfer-in' | 'purchase'
 }
 
 type SavedAccount = {
@@ -60,6 +61,9 @@ function App() {
 
   const [receiveAmount, setReceiveAmount] = useState('')
   const [receiveSender, setReceiveSender] = useState('')
+
+  const [purchaseAmount, setPurchaseAmount] = useState('')
+  const [purchaseMerchant, setPurchaseMerchant] = useState('')
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -213,6 +217,66 @@ function App() {
 
     setReceiveAmount('')
     setReceiveSender('')
+    setError('')
+    setScreen('dashboard')
+  }
+
+  const handlePayment = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!activeAccount) return
+
+    const validAmount = /^\d+(\.\d{1,2})?$/
+
+    if (!purchaseMerchant.trim()) {
+      setError('Ingresa el nombre del comercio.')
+      return
+    }
+
+    if (!validAmount.test(purchaseAmount.trim())) {
+      setError('Ingresa un monto válido con máximo dos decimales.')
+      return
+    }
+
+    const amountCents = Math.round(Number(purchaseAmount) * 100)
+
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      setError('El monto debe ser mayor a cero.')
+      return
+    }
+
+    if (amountCents > activeAccount.balanceCents) {
+      setError('Pago rechazado: no tienes saldo suficiente.')
+      return
+    }
+
+    const transaction: Transaction = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      description: `Compra en ${purchaseMerchant.trim()}`,
+      amountCents,
+      type: 'purchase',
+    }
+
+    const updatedAccount: SavedAccount = {
+      ...activeAccount,
+      balanceCents: activeAccount.balanceCents - amountCents,
+      transactions: [
+        transaction,
+        ...(activeAccount.transactions || []),
+      ],
+    }
+
+    const updatedAccounts = accounts.map(account =>
+      account.phone === activeAccount.phone ? updatedAccount : account
+    )
+
+    saveAccounts(updatedAccounts)
+    setAccounts(updatedAccounts)
+    setActiveAccount(updatedAccount)
+
+    setPurchaseAmount('')
+    setPurchaseMerchant('')
     setError('')
     setScreen('dashboard')
   }
@@ -533,6 +597,109 @@ function App() {
           </div>
         )}
 
+        {screen === 'make-payment' && activeAccount && (
+          <div className="dashboard">
+            <p className="eyebrow">PASO 4 · PAGO CON TARJETA</p>
+            <h1>Paga con tu tarjeta Kampus.</h1>
+
+            <p className="subtitle">
+              Simula una compra en un establecimiento.
+            </p>
+
+            <div
+              style={{
+                background: '#153B70',
+                color: '#FFFFFF',
+                padding: '24px',
+                borderRadius: '18px',
+                margin: '20px 0',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}>
+                <strong style={{ fontSize: '22px' }}>Kampus</strong>
+                <span>◉</span>
+              </div>
+
+              <p style={{
+                fontSize: '21px',
+                letterSpacing: '3px',
+                margin: '32px 0',
+              }}>
+                •••• •••• •••• 4821
+              </p>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                fontSize: '12px',
+              }}>
+                <span>{activeAccount.name.toUpperCase()}</span>
+                <strong style={{ fontSize: '18px' }}>VISA</strong>
+              </div>
+            </div>
+
+            <div className="verification">
+              <div>
+                <strong>Saldo disponible</strong>
+                <h2>{formatMoney(activeAccount.balanceCents)}</h2>
+              </div>
+            </div>
+
+            <form onSubmit={handlePayment} noValidate>
+              <label htmlFor="purchaseMerchant">Nombre del comercio</label>
+              <input
+                id="purchaseMerchant"
+                type="text"
+                placeholder="Ej. Cafetería UP"
+                value={purchaseMerchant}
+                onChange={e => {
+                  setPurchaseMerchant(e.target.value)
+                  setError('')
+                }}
+              />
+
+              <label htmlFor="purchaseAmount">Monto de la compra (MXN)</label>
+              <input
+                id="purchaseAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Ej. 150.00"
+                value={purchaseAmount}
+                onChange={e => {
+                  setPurchaseAmount(e.target.value)
+                  setError('')
+                }}
+              />
+
+              {error && <p className="error" role="alert">{error}</p>}
+
+              <button type="submit">
+                Confirmar pago de prueba →
+              </button>
+            </form>
+
+            <p className="security">
+              Tarjeta ficticia. No permite realizar compras reales.
+            </p>
+
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setError('')
+                setScreen('dashboard')
+              }}
+            >
+              Regresar a mi cuenta
+            </button>
+          </div>
+        )}
+
         {screen === 'dashboard' && activeAccount && (
           <div className="dashboard">
             <p className="eyebrow">TU CUENTA KAMPUS</p>
@@ -574,8 +741,15 @@ function App() {
                     </p>
                   </div>
 
-                  <strong style={{ color: '#128A5D' }}>
-                    +{formatMoney(transaction.amountCents)}
+                  <strong
+                    style={{
+                      color: transaction.type === 'transfer-in'
+                        ? '#128A5D'
+                        : '#C8272E',
+                    }}
+                  >
+                    {transaction.type === 'transfer-in' ? '+' : '-'}
+                    {formatMoney(transaction.amountCents)}
                   </strong>
                 </div>
               ))
@@ -592,6 +766,10 @@ function App() {
 
             <button onClick={() => setScreen('receive-money')}>
               + Recibir dinero
+            </button>
+
+            <button onClick={() => setScreen('make-payment')}>
+              Pagar con tarjeta →
             </button>
 
             <button className="secondary-button" onClick={handleLogout}>
