@@ -2,56 +2,163 @@
 import { useState, type FormEvent } from 'react'
 import './App.css'
 
+type Screen =
+  | 'login'
+  | 'register'
+  | 'registration-success'
+  | 'account-opening'
+  | 'account-opened'
+  | 'dashboard'
+
+type SavedAccount = {
+  name: string
+  phone: string
+  password: string
+  clabe: string
+  balanceCents: number
+  opened: boolean
+}
+
+const STORAGE_KEY = 'kampus_demo_accounts'
+
+function getAccounts(): SavedAccount[] {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    return saved ? JSON.parse(saved) as SavedAccount[] : []
+  } catch {
+    return []
+  }
+}
+
+function saveAccounts(accounts: SavedAccount[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
+}
+
 function App() {
+  const [accounts, setAccounts] = useState<SavedAccount[]>(getAccounts)
+
+  const [screen, setScreen] = useState<Screen>('login')
+  const [activeAccount, setActiveAccount] = useState<SavedAccount | null>(null)
+
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
   const [kycApproved, setKycApproved] = useState(false)
-  const [success, setSuccess] = useState(false)
+
+  const [loginPhone, setLoginPhone] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
+
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
+  const formatMoney = (cents: number) =>
+    new Intl.NumberFormat('es-MX', {
+      style: 'currency',
+      currency: 'MXN',
+    }).format(cents / 100)
 
+  const handleRegister = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     if (loading) return
 
     const nameParts = name.trim().split(/\s+/)
 
-    if (
-      nameParts.length < 2 ||
-      nameParts.some(part => part.length < 2)
-    ) {
+    if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
       setError('Ingresa tu nombre y al menos un apellido.')
       return
     }
 
     if (!/^\d{10}$/.test(phone)) {
-      setError('Ingresa un teléfono válido de 10 dígitos.')
+      setError('Ingresa un celular válido de 10 dígitos.')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('Tu contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+
+    if (accounts.some(account => account.phone === phone)) {
+      setError('Este celular ya tiene una cuenta. Inicia sesión.')
       return
     }
 
     if (!kycApproved) {
-      setError('Activa la verificación de identidad para continuar.')
+      setError('Activa la verificación simulada para continuar.')
       return
     }
 
     setError('')
     setLoading(true)
 
-    // Simulación de procesamiento. No realiza KYC real.
     window.setTimeout(() => {
       setLoading(false)
-      setSuccess(true)
+      setScreen('registration-success')
     }, 700)
   }
 
-  const handleReset = () => {
-    setSuccess(false)
-    setLoading(false)
+  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (loading) return
+
+    if (!/^\d{10}$/.test(loginPhone)) {
+      setError('Ingresa tu celular de 10 dígitos.')
+      return
+    }
+
+    const account = accounts.find(
+      item =>
+        item.phone === loginPhone &&
+        item.password === loginPassword &&
+        item.opened
+    )
+
+    if (!account) {
+      setError('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
+      return
+    }
+
     setError('')
-    setName('')
-    setPhone('')
-    setKycApproved(false)
+    setLoading(true)
+
+    window.setTimeout(() => {
+      setActiveAccount(account)
+      setLoading(false)
+      setScreen('dashboard')
+    }, 500)
+  }
+
+  const handleOpenAccount = () => {
+    if (loading) return
+
+    setLoading(true)
+
+    window.setTimeout(() => {
+      const newAccount: SavedAccount = {
+        name: name.trim(),
+        phone,
+        password,
+        clabe: '000000000000000000',
+        balanceCents: 0,
+        opened: true,
+      }
+
+      const updatedAccounts = [...accounts, newAccount]
+
+      saveAccounts(updatedAccounts)
+      setAccounts(updatedAccounts)
+      setActiveAccount(newAccount)
+      setLoading(false)
+      setScreen('account-opened')
+    }, 1000)
+  }
+
+  const handleLogout = () => {
+    setActiveAccount(null)
+    setLoginPhone('')
+    setLoginPassword('')
+    setError('')
+    setScreen('login')
   }
 
   return (
@@ -65,26 +172,88 @@ function App() {
       </header>
 
       <section className="register-card">
-        {!success ? (
+
+        {screen === 'login' && (
+          <>
+            <div className="welcome-icon">K</div>
+            <p className="eyebrow">BIENVENIDA DE NUEVO</p>
+            <h1>Entra a tu cuenta Kampus.</h1>
+            <p className="subtitle">
+              Ingresa tus datos para consultar tu cuenta.
+            </p>
+
+            <form onSubmit={handleLogin} noValidate>
+              <label htmlFor="loginPhone">Número de celular</label>
+              <div className="phone-input">
+                <span>+52</span>
+                <input
+                  id="loginPhone"
+                  type="tel"
+                  placeholder="10 dígitos"
+                  maxLength={10}
+                  inputMode="numeric"
+                  value={loginPhone}
+                  onChange={e => {
+                    setLoginPhone(e.target.value.replace(/\D/g, ''))
+                    setError('')
+                  }}
+                  disabled={loading}
+                />
+              </div>
+
+              <label htmlFor="loginPassword">Contraseña</label>
+              <input
+                id="loginPassword"
+                type="password"
+                placeholder="Tu contraseña"
+                value={loginPassword}
+                onChange={e => {
+                  setLoginPassword(e.target.value)
+                  setError('')
+                }}
+                disabled={loading}
+              />
+
+              {error && <p className="error" role="alert">{error}</p>}
+
+              <button type="submit" disabled={loading}>
+                {loading ? 'Ingresando...' : 'Iniciar sesión →'}
+              </button>
+            </form>
+
+            <p className="security">
+              ¿Todavía no tienes cuenta?
+            </p>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setError('')
+                setScreen('register')
+              }}
+            >
+              Crear una cuenta Kampus
+            </button>
+          </>
+        )}
+
+        {screen === 'register' && (
           <>
             <div className="welcome-icon">K</div>
             <p className="eyebrow">TU DINERO, TU FUTURO</p>
-            <h1>Tu vida financiera empieza aquí.</h1>
+            <h1>Comienza tu vida financiera.</h1>
             <p className="subtitle">
-              Crea tu cuenta Kampus y comienza a administrar
-              tu dinero de forma sencilla.
+              Regístrate para crear tu cuenta Kampus.
             </p>
 
-            <form onSubmit={handleSubmit} noValidate>
+            <form onSubmit={handleRegister} noValidate>
               <label htmlFor="name">Nombre completo</label>
               <input
                 id="name"
                 type="text"
                 placeholder="Ej. Mariana Torres"
-                value={name}
                 autoComplete="name"
-                aria-invalid={Boolean(error)}
-                onChange={(e) => {
+                value={name}
+                onChange={e => {
                   setName(e.target.value)
                   setError('')
                 }}
@@ -100,15 +269,27 @@ function App() {
                   placeholder="10 dígitos"
                   maxLength={10}
                   inputMode="numeric"
-                  autoComplete="tel-national"
                   value={phone}
-                  onChange={(e) => {
+                  onChange={e => {
                     setPhone(e.target.value.replace(/\D/g, ''))
                     setError('')
                   }}
                   disabled={loading}
                 />
               </div>
+
+              <label htmlFor="password">Crear contraseña</label>
+              <input
+                id="password"
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={password}
+                onChange={e => {
+                  setPassword(e.target.value)
+                  setError('')
+                }}
+                disabled={loading}
+              />
 
               <div className="verification">
                 <div>
@@ -118,9 +299,8 @@ function App() {
                 <label className="switch">
                   <input
                     type="checkbox"
-                    aria-label="Activar verificación simulada"
                     checked={kycApproved}
-                    onChange={(e) => {
+                    onChange={e => {
                       setKycApproved(e.target.checked)
                       setError('')
                     }}
@@ -130,35 +310,137 @@ function App() {
                 </label>
               </div>
 
-              {error && (
-                <p className="error" role="alert">
-                  {error}
-                </p>
-              )}
+              {error && <p className="error" role="alert">{error}</p>}
 
               <button type="submit" disabled={loading}>
                 {loading ? 'Procesando registro...' : 'Crear mi cuenta →'}
               </button>
             </form>
 
-            <p className="security">
-              🔒 Tus datos son ficticios. Esta es una demostración académica.
-            </p>
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setError('')
+                setScreen('login')
+              }}
+            >
+              Ya tengo una cuenta
+            </button>
           </>
-        ) : (
+        )}
+
+        {screen === 'registration-success' && (
           <div className="success" role="status">
             <div className="success-icon">✓</div>
-            <p className="eyebrow">REGISTRO COMPLETADO</p>
-            <h1>¡Bienvenida a Kampus, {name.trim().split(/\s+/)[0]}!</h1>
+            <p className="eyebrow">PASO 1 COMPLETADO</p>
+            <h1>¡Bienvenida a Kampus, {name.split(/\s+/)[0]}!</h1>
             <p className="subtitle">
-              Tu registro de demostración se completó correctamente.
+              Tu registro de demostración se completó.
               La verificación KYC fue simulada.
             </p>
-            <button onClick={handleReset}>
-              Volver al registro
+            <button onClick={() => setScreen('account-opening')}>
+              Continuar a apertura de cuenta →
             </button>
           </div>
         )}
+
+        {screen === 'account-opening' && (
+          <div className="success">
+            <div className="welcome-icon">K</div>
+            <p className="eyebrow">PASO 2 · APERTURA DE CUENTA</p>
+            <h1>Tu cuenta Kampus está a un paso.</h1>
+            <p className="subtitle">
+              En una operación real, el partner financiero revisaría
+              y autorizaría la apertura. Aquí simularemos ese proceso.
+            </p>
+
+            <div className="verification">
+              <div>
+                <strong>Institución financiera</strong>
+                <p>Partner licenciado · Simulación</p>
+              </div>
+              <span>DEMO</span>
+            </div>
+
+            <button onClick={handleOpenAccount} disabled={loading}>
+              {loading ? 'Abriendo cuenta...' : 'Abrir cuenta de demostración →'}
+            </button>
+
+            <button
+              className="secondary-button"
+              onClick={() => setScreen('registration-success')}
+              disabled={loading}
+            >
+              Regresar
+            </button>
+          </div>
+        )}
+
+        {screen === 'account-opened' && activeAccount && (
+          <div className="success" role="status">
+            <div className="success-icon">✓</div>
+            <p className="eyebrow">PASO 2 COMPLETADO</p>
+            <h1>¡Tu cuenta Kampus está lista!</h1>
+            <p className="subtitle">
+              Hola, {activeAccount.name}. Tu cuenta quedó guardada.
+            </p>
+
+            <div className="verification">
+              <div>
+                <strong>CLABE de demostración</strong>
+                <p>{activeAccount.clabe}</p>
+              </div>
+            </div>
+
+            <p className="security">
+              CLABE ficticia. No permite recibir transferencias reales.
+            </p>
+
+            <button onClick={() => setScreen('dashboard')}>
+              Ir a mi cuenta →
+            </button>
+          </div>
+        )}
+
+        {screen === 'dashboard' && activeAccount && (
+          <div className="dashboard">
+            <p className="eyebrow">TU CUENTA KAMPUS</p>
+            <h1>¡Hola, {activeAccount.name.split(/\s+/)[0]}!</h1>
+            <p className="subtitle">
+              Este es el resumen de tu cuenta.
+            </p>
+
+            <div className="verification">
+              <div>
+                <strong>Saldo disponible</strong>
+                <h1>{formatMoney(activeAccount.balanceCents)}</h1>
+                <p>Pesos mexicanos · Saldo de demostración</p>
+              </div>
+            </div>
+
+            <div className="verification">
+              <div>
+                <strong>CLABE de demostración</strong>
+                <p>{activeAccount.clabe}</p>
+                <p>No permite recibir transferencias reales.</p>
+              </div>
+            </div>
+
+            <h2>Tu cuenta</h2>
+            <p className="security">
+              Apertura simulada · Partner financiero ficticio.
+            </p>
+
+            <button onClick={() => setScreen('account-opened')}>
+              Ver información de mi cuenta
+            </button>
+
+            <button className="secondary-button" onClick={handleLogout}>
+              Cerrar sesión
+            </button>
+          </div>
+        )}
+
       </section>
 
       <footer>
