@@ -9,6 +9,15 @@ type Screen =
   | 'account-opening'
   | 'account-opened'
   | 'dashboard'
+  | 'receive-money'
+
+type Transaction = {
+  id: number
+  date: string
+  description: string
+  amountCents: number
+  type: 'transfer-in'
+}
 
 type SavedAccount = {
   name: string
@@ -17,6 +26,7 @@ type SavedAccount = {
   clabe: string
   balanceCents: number
   opened: boolean
+  transactions?: Transaction[]
 }
 
 const STORAGE_KEY = 'kampus_demo_accounts'
@@ -47,6 +57,9 @@ function App() {
 
   const [loginPhone, setLoginPhone] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
+
+  const [receiveAmount, setReceiveAmount] = useState('')
+  const [receiveSender, setReceiveSender] = useState('')
 
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
@@ -141,6 +154,7 @@ function App() {
         clabe: '000000000000000000',
         balanceCents: 0,
         opened: true,
+        transactions: [],
       }
 
       const updatedAccounts = [...accounts, newAccount]
@@ -151,6 +165,56 @@ function App() {
       setLoading(false)
       setScreen('account-opened')
     }, 1000)
+  }
+
+  const handleReceiveMoney = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+
+    if (!activeAccount) return
+
+    const validAmount = /^\d+(\.\d{1,2})?$/
+
+    if (!validAmount.test(receiveAmount.trim())) {
+      setError('Ingresa un monto válido con máximo dos decimales.')
+      return
+    }
+
+    const amountCents = Math.round(Number(receiveAmount) * 100)
+
+    if (!Number.isSafeInteger(amountCents) || amountCents <= 0) {
+      setError('El monto debe ser mayor a cero.')
+      return
+    }
+
+    const transaction: Transaction = {
+      id: Date.now(),
+      date: new Date().toISOString(),
+      description: receiveSender.trim() || 'Transferencia recibida',
+      amountCents,
+      type: 'transfer-in',
+    }
+
+    const updatedAccount: SavedAccount = {
+      ...activeAccount,
+      balanceCents: activeAccount.balanceCents + amountCents,
+      transactions: [
+        transaction,
+        ...(activeAccount.transactions || []),
+      ],
+    }
+
+    const updatedAccounts = accounts.map(account =>
+      account.phone === activeAccount.phone ? updatedAccount : account
+    )
+
+    saveAccounts(updatedAccounts)
+    setAccounts(updatedAccounts)
+    setActiveAccount(updatedAccount)
+
+    setReceiveAmount('')
+    setReceiveSender('')
+    setError('')
+    setScreen('dashboard')
   }
 
   const handleLogout = () => {
@@ -402,6 +466,73 @@ function App() {
           </div>
         )}
 
+        {screen === 'receive-money' && activeAccount && (
+          <div className="dashboard">
+            <p className="eyebrow">PASO 3 · RECEPCIÓN DE DINERO</p>
+            <h1>Recibe dinero en Kampus.</h1>
+
+            <p className="subtitle">
+              Simula una transferencia recibida en tu cuenta.
+            </p>
+
+            <div className="verification">
+              <div>
+                <strong>CLABE de demostración</strong>
+                <p>{activeAccount.clabe}</p>
+                <p>Esta CLABE no recibe transferencias reales.</p>
+              </div>
+            </div>
+
+            <form onSubmit={handleReceiveMoney} noValidate>
+              <label htmlFor="receiveAmount">Monto a recibir (MXN)</label>
+              <input
+                id="receiveAmount"
+                type="number"
+                min="0.01"
+                step="0.01"
+                placeholder="Ej. 500.00"
+                value={receiveAmount}
+                onChange={e => {
+                  setReceiveAmount(e.target.value)
+                  setError('')
+                }}
+              />
+
+              <label htmlFor="receiveSender">¿De quién recibes el dinero?</label>
+              <input
+                id="receiveSender"
+                type="text"
+                placeholder="Ej. Transferencia de mamá"
+                value={receiveSender}
+                onChange={e => {
+                  setReceiveSender(e.target.value)
+                  setError('')
+                }}
+              />
+
+              {error && <p className="error" role="alert">{error}</p>}
+
+              <button type="submit">
+                Confirmar transferencia de prueba →
+              </button>
+            </form>
+
+            <p className="security">
+              Operación simulada. No se mueve dinero real.
+            </p>
+
+            <button
+              className="secondary-button"
+              onClick={() => {
+                setError('')
+                setScreen('dashboard')
+              }}
+            >
+              Regresar a mi cuenta
+            </button>
+          </div>
+        )}
+
         {screen === 'dashboard' && activeAccount && (
           <div className="dashboard">
             <p className="eyebrow">TU CUENTA KAMPUS</p>
@@ -426,6 +557,30 @@ function App() {
               </div>
             </div>
 
+            <h2>Movimientos recientes</h2>
+
+            {(activeAccount.transactions || []).length === 0 ? (
+              <p className="security">
+                Todavía no tienes movimientos. Cuando recibas dinero,
+                aparecerá aquí.
+              </p>
+            ) : (
+              (activeAccount.transactions || []).map(transaction => (
+                <div className="verification" key={transaction.id}>
+                  <div>
+                    <strong>{transaction.description}</strong>
+                    <p>
+                      {new Date(transaction.date).toLocaleDateString('es-MX')}
+                    </p>
+                  </div>
+
+                  <strong style={{ color: '#128A5D' }}>
+                    +{formatMoney(transaction.amountCents)}
+                  </strong>
+                </div>
+              ))
+            )}
+
             <h2>Tu cuenta</h2>
             <p className="security">
               Apertura simulada · Partner financiero ficticio.
@@ -433,6 +588,10 @@ function App() {
 
             <button onClick={() => setScreen('account-opened')}>
               Ver información de mi cuenta
+            </button>
+
+            <button onClick={() => setScreen('receive-money')}>
+              + Recibir dinero
             </button>
 
             <button className="secondary-button" onClick={handleLogout}>
