@@ -52,3 +52,20 @@ Registro de sesiones de trabajo con IA en este proyecto. Cada entrada documenta 
 
 **Qué decidió el equipo:**
 -->
+## Entrada 3 — 11 de noviembre de 2026
+
+**Objetivo:** preparar el entorno de desarrollo del MVP de Kampus, organizar la documentación del proyecto e implementar el primer paso del flujo central: el registro de usuarios.
+
+**Qué hizo la IA:**
+- Guió al equipo en la creación del proyecto web con React y TypeScript utilizando Vite.
+- Ayudó a configurar la pantalla de registro con campos de nombre completo y número celular.
+- Implementó una verificación simulada y una pantalla de confirmación de registro.
+- A partir de las decisiones, indicaciones y preferencias visuales compartidas por el equipo, ayudó a desarrollar y documentar los lineamientos de diseño de Kampus en `design.md`.
+- Ayudó a crear y organizar los archivos `AGENTS.md`, `SPEC.md`, `BITACORA.md` y `design.md`.
+- Guió la inicialización de Git y la creación del primer commit.
+
+**Qué decidió el equipo:**
+- Utilizar una versión web con React y TypeScript como prototipo para este sprint.
+- Mantener la verificación de identidad en modo demostración, sin realizar un proceso real de KYC.
+- Dar por terminado el primer avance funcional del registro.
+- Guardar el avance con el commit `26c1903`, con el mensaje "Primer avance: registro funcional de Kampus".
