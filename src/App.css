@@ -1,0 +1,311 @@
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', sans-serif;
+  background: #f4f6fa;
+  color: #17243b;
+}
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  height: 76px;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 8%;
+  border-bottom: 1px solid #e8edf4;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 25px;
+  font-weight: 800;
+  color: #173b70;
+}
+
+.brand-icon {
+  background: #1d4e8f;
+  color: white;
+  border-radius: 10px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+}
+
+.demo {
+  background: #eaf1fb;
+  color: #1d4e8f;
+  padding: 8px 14px;
+  border-radius: 30px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.register-card {
+  background: white;
+  width: min(100% - 32px, 490px);
+  margin: 55px auto;
+  padding: 42px;
+  border-radius: 22px;
+  box-shadow: 0 12px 45px rgba(25, 49, 83, 0.07);
+}
+
+.welcome-icon {
+  width: 54px;
+  height: 54px;
+  background: #1d4e8f;
+  color: white;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  font-size: 27px;
+  font-weight: 800;
+}
+
+.eyebrow {
+  color: #1d4e8f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  margin-top: 25px;
+}
+
+h1 {
+  font-size: 31px;
+  line-height: 1.2;
+  margin: 12px 0;
+  color: #172b49;
+}
+
+.subtitle {
+  color: #718096;
+  line-height: 1.7;
+  font-size: 14px;
+  margin-bottom: 30px;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+form > label {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+}
+
+input[type="text"],
+input[type="tel"],
+.phone-input {
+  width: 100%;
+  height: 49px;
+  border: 1px solid #dce3ed;
+  border-radius: 10px;
+  background: white;
+}
+
+input[type="text"],
+input[type="tel"] {
+  padding: 0 14px;
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+input:focus {
+  border-color: #1d4e8f;
+}
+
+.phone-input {
+  display: flex;
+  align-items: center;
+  padding-left: 14px;
+  gap: 10px;
+}
+
+.phone-input span {
+  font-size: 14px;
+  color: #52647b;
+  border-right: 1px solid #dce3ed;
+  padding-right: 12px;
+}
+
+.phone-input input {
+  border: none;
+  height: 45px;
+}
+
+.verification {
+  background: #f5f7fb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.verification strong {
+  font-size: 13px;
+}
+
+.verification p {
+  color: #718096;
+  font-size: 11px;
+  margin: 6px 0 0;
+}
+
+.switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background: #cbd5e1;
+  border-radius: 30px;
+  transition: .2s;
+}
+
+.slider:before {
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background: white;
+  border-radius: 50%;
+  transition: .2s;
+}
+
+.switch input:checked + .slider {
+  background: #1d4e8f;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(20px);
+}
+
+button {
+  border: none;
+  background: #1d4e8f;
+  color: white;
+  height: 52px;
+  border-radius: 11px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: .2s;
+}
+
+button:hover {
+  background: #153b70;
+}
+
+.error {
+  color: #c8272e;
+  font-size: 12px;
+}
+
+.security {
+  color: #8995a7;
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.6;
+  margin-top: 24px;
+}
+
+.success {
+  text-align: center;
+}
+
+.success-icon {
+  width: 65px;
+  height: 65px;
+  background: #e3f5eb;
+  color: #128a5d;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 32px;
+  margin: auto;
+}
+
+footer {
+  margin-top: auto;
+  text-align: center;
+  padding: 20px;
+  color: #718096;
+  font-size: 11px;
+}
+
+@media (max-width: 550px) {
+  .register-card {
+    margin: 25px auto;
+    padding: 28px 23px;
+  }
+
+  .topbar {
+    padding: 0 20px;
+  }
+
+  h1 {
+    font-size: 27px;
+  }
+}
+
+
+/* FIX: visibilidad de los campos de registro */
+
+input[type="text"],
+input[type="tel"],
+.phone-input input {
+  color: #172b49 !important;
+  background-color: #ffffff !important;
+  -webkit-text-fill-color: #172b49 !important;
+  caret-color: #1d4e8f;
+  opacity: 1;
+}
+
+input::placeholder {
+  color: #8995a7 !important;
+  -webkit-text-fill-color: #8995a7 !important;
+  opacity: 1;
+}
+
+.phone-input {
+  background-color: #ffffff !important;
+}
+
+.phone-input span {
+  color: #52647b !important;
+}
