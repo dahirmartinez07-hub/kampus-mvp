@@ -1,4 +1,4 @@
- 
+
 import { useState, type FormEvent } from 'react'
 import './App.css'
 
@@ -466,6 +466,98 @@ function App() {
       .reduce((total, transaction) => total + transaction.amountCents, 0),
   }))
 
+  const totalCategorizedCents = categoryExpenses.reduce(
+    (total, item) => total + item.amountCents,
+    0
+  )
+
+  const savingsTransactions = (activeAccount?.transactions || []).filter(
+    transaction =>
+      transaction.type === 'savings-deposit' ||
+      transaction.type === 'savings-withdrawal' ||
+      transaction.type === 'savings-interest'
+  )
+
+  const netSavingsMovements = savingsTransactions.reduce(
+    (total, transaction) =>
+      total +
+      (transaction.type === 'savings-withdrawal'
+        ? -transaction.amountCents
+        : transaction.amountCents),
+    0
+  )
+
+  const openingSavingsCents = currentSavings - netSavingsMovements
+  const savingsHistory = Array.from({ length: 6 }, (_, index) => {
+    const monthDate = new Date()
+    monthDate.setDate(1)
+    monthDate.setMonth(monthDate.getMonth() - (5 - index))
+    const endOfMonth = new Date(
+      monthDate.getFullYear(),
+      monthDate.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999
+    )
+
+    const movementsUntilMonthEnd = savingsTransactions
+      .filter(transaction => new Date(transaction.date) <= endOfMonth)
+      .reduce(
+        (total, transaction) =>
+          total +
+          (transaction.type === 'savings-withdrawal'
+            ? -transaction.amountCents
+            : transaction.amountCents),
+        0
+      )
+
+    return {
+      label: monthDate.toLocaleDateString('es-MX', { month: 'short' }),
+      balanceCents: Math.max(0, openingSavingsCents + movementsUntilMonthEnd),
+    }
+  })
+
+  if (savingsHistory.length) {
+    savingsHistory[savingsHistory.length - 1].balanceCents = currentSavings
+  }
+
+  const maxSavingsHistory = Math.max(
+    1,
+    ...savingsHistory.map(point => point.balanceCents)
+  )
+  const savingsChartPoints = savingsHistory.map((point, index) => ({
+    ...point,
+    x: 36 + index * 58,
+    y: 132 - (point.balanceCents / maxSavingsHistory) * 108,
+  }))
+  const savingsPolyline = savingsChartPoints.map(point => `${point.x},${point.y}`).join(' ')
+
+  const categoryColors: Record<ExpenseCategory, string> = {
+    Comida: '#1D4E8F',
+    Transporte: '#128A5D',
+    Educación: '#D69E36',
+    Entretenimiento: '#8257B5',
+    Otros: '#8793A5',
+  }
+
+  const categoryGradientStops = categoryExpenses
+    .filter(item => item.amountCents > 0)
+    .reduce((result, item, index, items) => {
+      const previous = items
+        .slice(0, index)
+        .reduce((total, previousItem) => total + previousItem.amountCents, 0)
+      const start = totalCategorizedCents
+        ? (previous / totalCategorizedCents) * 100
+        : 0
+      const end = totalCategorizedCents
+        ? ((previous + item.amountCents) / totalCategorizedCents) * 100
+        : 0
+      return [...result, `${categoryColors[item.category]} ${start}% ${end}%`]
+    }, [] as string[])
+    .join(', ')
+
   return (
     <main className="page">
       <header className="topbar">
@@ -635,7 +727,7 @@ function App() {
         {screen === 'registration-success' && (
           <div className="success" role="status">
             <div className="success-icon">✓</div>
-            <p className="eyebrow">PASO 1 COMPLETADO</p>
+            <p className="eyebrow">REGISTRO COMPLETADO</p>
             <h1>¡Bienvenida a Kampus, {name.split(/\s+/)[0]}!</h1>
             <p className="subtitle">
               Tu registro de demostración se completó.
@@ -650,7 +742,7 @@ function App() {
         {screen === 'account-opening' && (
           <div className="success">
             <div className="welcome-icon">K</div>
-            <p className="eyebrow">PASO 2 · APERTURA DE CUENTA</p>
+            <p className="eyebrow">APERTURA DE CUENTA</p>
             <h1>Tu cuenta Kampus está a un paso.</h1>
             <p className="subtitle">
               En una operación real, el partner financiero revisaría
@@ -682,7 +774,7 @@ function App() {
         {screen === 'account-opened' && activeAccount && (
           <div className="success" role="status">
             <div className="success-icon">✓</div>
-            <p className="eyebrow">PASO 2 COMPLETADO</p>
+            <p className="eyebrow">CUENTA ACTIVADA</p>
             <h1>¡Tu cuenta Kampus está lista!</h1>
             <p className="subtitle">
               Hola, {activeAccount.name}. Tu cuenta quedó guardada.
@@ -707,7 +799,7 @@ function App() {
 
         {screen === 'receive-money' && activeAccount && (
           <div className="dashboard">
-            <p className="eyebrow">PASO 3 · RECEPCIÓN DE DINERO</p>
+            <p className="eyebrow">RECEPCIÓN DE DINERO</p>
             <h1>Recibe dinero en Kampus.</h1>
             <p className="subtitle">
               Simula una transferencia recibida en tu cuenta.
@@ -773,7 +865,7 @@ function App() {
 
         {screen === 'make-payment' && activeAccount && (
           <div className="dashboard">
-            <p className="eyebrow">PASO 4 · PAGO CON TARJETA</p>
+            <p className="eyebrow">PAGO CON TARJETA</p>
             <h1>Paga con tu tarjeta Kampus.</h1>
             <p className="subtitle">
               Simula una compra en un establecimiento.
@@ -873,7 +965,7 @@ function App() {
 
         {screen === 'savings' && activeAccount && (
           <div className="dashboard">
-            <p className="eyebrow">PASO 5 · AHORRO</p>
+            <p className="eyebrow">AHORRO</p>
             <h1>Haz crecer tu ahorro.</h1>
             <p className="subtitle">
               Separa dinero y consulta tu rendimiento simulado.
@@ -1036,7 +1128,7 @@ function App() {
               </div>
             </div>
 
-            <p className="eyebrow">PASO 6 · CONTROL DE GASTOS</p>
+            <p className="eyebrow">CONTROL DE GASTOS</p>
             <h2>Resumen de gastos del mes</h2>
 
             <div className="verification expense-summary">
@@ -1058,10 +1150,115 @@ function App() {
                       transaction => transaction.category === item.category
                     ).length} compras
                   </p>
+                  <div
+                    style={{
+                      height: '7px',
+                      width: 'min(52vw, 260px)',
+                      maxWidth: '100%',
+                      background: '#E5EAF1',
+                      borderRadius: '99px',
+                      marginTop: '8px',
+                      overflow: 'hidden',
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: '100%',
+                        width: `${monthlyExpenseCents ? (item.amountCents / monthlyExpenseCents) * 100 : 0}%`,
+                        background: categoryColors[item.category],
+                        borderRadius: '99px',
+                      }}
+                    />
+                  </div>
                 </div>
                 <strong>{formatMoney(item.amountCents)}</strong>
               </div>
             ))}
+
+            <div className="verification" style={{ marginTop: '18px' }}>
+              <div style={{ width: '100%' }}>
+                <strong>Distribución de gastos</strong>
+                <p>Participación de cada categoría en tus compras de este mes.</p>
+                {totalCategorizedCents > 0 ? (
+                  <>
+                    <div
+                      role="img"
+                      aria-label="Gráfica circular de gastos por categoría"
+                      style={{
+                        width: '190px',
+                        height: '190px',
+                        borderRadius: '50%',
+                        margin: '20px auto',
+                        background: `conic-gradient(${categoryGradientStops})`,
+                        position: 'relative',
+                      }}
+                    >
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: '28%',
+                          borderRadius: '50%',
+                          background: '#FFFFFF',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          textAlign: 'center',
+                        }}
+                      >
+                        <strong style={{ fontSize: '13px' }}>Total</strong>
+                        <strong style={{ fontSize: '15px' }}>{formatMoney(totalCategorizedCents)}</strong>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(125px, 1fr))', gap: '10px' }}>
+                      {categoryExpenses.filter(item => item.amountCents > 0).map(item => (
+                        <div key={item.category} style={{ display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px' }}>
+                          <span style={{ width: '10px', height: '10px', borderRadius: '50%', background: categoryColors[item.category], flexShrink: 0 }} />
+                          <span>{item.category} · {Math.round((item.amountCents / totalCategorizedCents) * 100)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <p className="security">Cuando registres compras, aquí aparecerá la distribución de tus gastos.</p>
+                )}
+              </div>
+            </div>
+
+            <div className="verification" style={{ marginTop: '18px' }}>
+              <div style={{ width: '100%' }}>
+                <strong>Evolución de tu ahorro</strong>
+                <p>Saldo de ahorro registrado durante los últimos seis meses.</p>
+                <svg
+                  viewBox="0 0 360 160"
+                  role="img"
+                  aria-label="Gráfica de evolución del saldo de ahorro"
+                  style={{ width: '100%', height: 'auto', marginTop: '14px', overflow: 'visible' }}
+                >
+                  {[24, 78, 132].map(y => (
+                    <line key={y} x1="30" y1={y} x2="330" y2={y} stroke="#DCE3EC" strokeDasharray="4 4" />
+                  ))}
+                  <polyline
+                    points={savingsPolyline}
+                    fill="none"
+                    stroke="#128A5D"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {savingsChartPoints.map(point => (
+                    <g key={point.label}>
+                      <circle cx={point.x} cy={point.y} r="4.5" fill="#128A5D" />
+                      <text x={point.x} y="153" textAnchor="middle" fontSize="10" fill="#526176">
+                        {point.label}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+                <strong>{formatMoney(currentSavings)}</strong>
+                <p>Saldo actual en ahorro. Los valores se calculan a partir de tus movimientos registrados.</p>
+              </div>
+            </div>
 
             <button
               type="button"
