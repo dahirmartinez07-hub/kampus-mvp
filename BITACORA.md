@@ -91,3 +91,22 @@ Registro de sesiones de trabajo con IA en este proyecto. Cada entrada documenta 
 - Mostrar los movimientos recientes únicamente cuando el usuario seleccione esa opción, para mantener el panel principal más limpio.
 - Mantener la clasificación de gastos mediante reglas por palabras clave, sin presentarla como inteligencia artificial.
 - Continuar desarrollando el MVP como un prototipo académico y no como una aplicación bancaria lista para operar.
+
+## Entrada 5 — 16 de noviembre de 2026
+
+**Objetivo de la sesión:** Mejorar la visualización de la información financiera y la experiencia de navegación del MVP de Kampus.
+
+**Actividades realizadas:**
+
+- Se agregó una gráfica circular para visualizar los gastos del usuario por categoría, como comida, transporte, educación y entretenimiento.
+- Se incorporó una gráfica de líneas para mostrar la evolución de los ahorros a lo largo del tiempo.
+- Se ajustaron los cálculos de las gráficas para que reflejen los movimientos registrados en la aplicación.
+- Se eliminaron las etiquetas numéricas de los pasos del flujo para lograr una navegación más natural.
+- Se verificó la compilación del proyecto mediante `npm run build`, sin errores.
+- Se registraron los cambios en Git y se subieron correctamente a GitHub.
+
+**Decisiones del equipo:**
+
+Se decidió mantener las gráficas dentro del MVP para facilitar que los usuarios comprendan sus hábitos de gasto y la evolución de sus ahorros. También se optó por eliminar la numeración de los pasos para que la experiencia se perciba más como una aplicación bancaria y menos como un formulario.
+
+**Resultado:** Se actualizaron las funcionalidades visuales del MVP. Los cambios quedaron guardados en GitHub mediante el commit `d94eea3`.
