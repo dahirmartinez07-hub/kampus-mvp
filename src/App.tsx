@@ -1,5 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
+import { supabase } from './lib/supabase'
 import './App.css'
 
 type Screen =
@@ -159,45 +160,76 @@ function App() {
     return cents
   }
 
-  const handleRegister = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    if (loading) return
+ const handleRegister = async (e: FormEvent<HTMLFormElement>) => {
+  e.preventDefault()
+  if (loading) return
 
-    const nameParts = name.trim().split(/\s+/)
+  const nameParts = name.trim().split(/\s+/)
 
-    if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
-      setError('Ingresa tu nombre y al menos un apellido.')
-      return
-    }
-
-    if (!/^\d{10}$/.test(phone)) {
-      setError('Ingresa un celular válido de 10 dígitos.')
-      return
-    }
-
-    if (password.length < 6) {
-      setError('Tu contraseña debe tener al menos 6 caracteres.')
-      return
-    }
-
-    if (accounts.some(account => account.phone === phone)) {
-      setError('Este celular ya tiene una cuenta. Inicia sesión.')
-      return
-    }
-
-    if (!kycApproved) {
-      setError('Activa la verificación simulada para continuar.')
-      return
-    }
-
-    setError('')
-    setLoading(true)
-
-    window.setTimeout(() => {
-      setLoading(false)
-      setScreen('registration-success')
-    }, 700)
+  if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
+    setError('Ingresa tu nombre y al menos un apellido.')
+    return
   }
+
+  if (!/^\d{10}$/.test(phone)) {
+    setError('Ingresa un celular válido de 10 dígitos.')
+    return
+  }
+
+  if (password.length < 6) {
+    setError('Tu contraseña debe tener al menos 6 caracteres.')
+    return
+  }
+
+  if (!kycApproved) {
+    setError('Activa la verificación simulada para continuar.')
+    return
+  }
+
+  setError('')
+  setLoading(true)
+
+  try {
+    const internalEmail = `52${phone}@kampus-demo.invalid`
+
+    const { data, error: authError } = await supabase.auth.signUp({
+      email: internalEmail,
+      password,
+      options: {
+        data: {
+          full_name: name.trim(),
+          phone,
+        },
+      },
+    })
+
+    if (authError) throw authError
+
+    if (!data.user || !data.session) {
+      throw new Error('No se pudo iniciar la sesión después del registro.')
+    }
+
+    const { error: accountError } = await supabase.rpc(
+      'create_kampus_account',
+      {
+        p_full_name: name.trim(),
+        p_phone: phone,
+      }
+    )
+
+    if (accountError) throw accountError
+
+    setScreen('registration-success')
+  } catch (err) {
+    setError(
+      err instanceof Error
+        ? err.message
+        : 'No pudimos completar tu registro.'
+    )
+  } finally {
+    setLoading(false)
+  }
+}
 
   const handleLogin = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
