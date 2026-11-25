@@ -389,7 +389,25 @@ function App() {
 
   const handleSimulateInterest = () => {
     if (!activeAccount) return
+    const now = new Date()
 
+const alreadyCreditedThisMonth = (
+  activeAccount.transactions || []
+).some(transaction => {
+  if (transaction.type !== 'savings-interest') return false
+
+  const transactionDate = new Date(transaction.date)
+
+  return (
+    transactionDate.getMonth() === now.getMonth() &&
+    transactionDate.getFullYear() === now.getFullYear()
+  )
+})
+
+if (alreadyCreditedThisMonth) {
+  setError('El rendimiento simulado de este mes ya fue registrado.')
+  return
+}
     const currentSavings = activeAccount.savingsCents || 0
 
     if (currentSavings <= 0) {
