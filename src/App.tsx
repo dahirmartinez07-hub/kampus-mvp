@@ -387,44 +387,7 @@ function App() {
     setScreen('dashboard')
   }
 
-  const handleSimulateInterest = () => {
-    if (!activeAccount) return
-
-    const currentSavings = activeAccount.savingsCents || 0
-
-    if (currentSavings <= 0) {
-      setError('Primero necesitas tener dinero en tu apartado de ahorro.')
-      return
-    }
-
-    const monthlyInterest = Math.round(
-      currentSavings * ANNUAL_RATE / 12
-    )
-
-    if (monthlyInterest <= 0) {
-      setError('El rendimiento simulado es menor a un centavo.')
-      return
-    }
-
-    const transaction = createTransaction(
-      'Rendimiento simulado de un mes',
-      monthlyInterest,
-      'savings-interest'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      savingsCents: currentSavings + monthlyInterest,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setError('')
-  }
-
+  
   const handleLogout = () => {
     setActiveAccount(null)
     setLoginPhone('')
@@ -434,6 +397,9 @@ function App() {
   }
 
   const currentSavings = activeAccount?.savingsCents || 0
+  const estimatedMonthlyInterest = Math.round(
+  currentSavings * ANNUAL_RATE / 12
+)
 
   const currentMonthPurchases = (activeAccount?.transactions || []).filter(transaction => {
     const transactionDate = new Date(transaction.date)
@@ -1060,25 +1026,13 @@ function App() {
                   : 'Retirar dinero de ahorro →'}
               </button>
             </form>
-
             <div className="verification">
-              <div>
-                <strong>Simulación de rendimiento</strong>
-                <p>
-                  Calcula un mes de rendimiento sobre tu ahorro actual.
-                </p>
-                <p>
-                  El cálculo utiliza la tasa anual ilustrativa del 5% dividida entre 12.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleSimulateInterest}
-              disabled={currentSavings <= 0}
-            >
-              Simular rendimiento de un mes
-            </button>
+  <div>
+    <strong>Rendimiento mensual estimado</strong>
+    <h2>{formatMoney(estimatedMonthlyInterest)}</h2>
+    <p>Estimación ilustrativa si mantienes el saldo actual durante un mes.</p>
+  </div>
+</div>
 
             <p className="security">
               Rendimiento ficticio. No representa una tasa ofrecida ni garantizada.
@@ -1133,7 +1087,7 @@ function App() {
               <div>
                 <strong>Dinero en ahorro</strong>
                 <h2>{formatMoney(currentSavings)}</h2>
-                <p>Rendimiento ilustrativo del 5% anual.</p>
+                <p>Rendimiento del 5% anual.</p>
               </div>
             </div>
 
