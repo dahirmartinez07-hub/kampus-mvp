@@ -22,49 +22,44 @@ type ExpenseCategory =
   | 'Otros'
 
 type Transaction = {
-  id: number
+  id: string
   date: string
   description: string
   amountCents: number
   category?: ExpenseCategory
-  type:
-    | 'transfer-in'
-    | 'purchase'
-    | 'savings-deposit'
-    | 'savings-withdrawal'
-    | 'savings-interest'
+  type: 'transfer-in' | 'purchase' | 'savings-deposit' | 'savings-withdrawal'
 }
 
 type SavedAccount = {
+  id: string
   name: string
   phone: string
-  password: string
   clabe: string
   balanceCents: number
-  savingsCents?: number
+  savingsCents: number
   opened: boolean
-  transactions?: Transaction[]
+  transactions: Transaction[]
 }
 
-const STORAGE_KEY = 'kampus_demo_accounts'
+type AccountRow = {
+  id: string
+  clabe: string
+  balance_cents: number | string
+  savings_cents: number | string
+}
+
+type TransactionRow = {
+  id: string
+  created_at: string
+  description: string
+  amount_cents: number | string
+  type: Transaction['type']
+  category: ExpenseCategory | null
+}
+
 const ANNUAL_RATE = 0.05
 
-function getAccounts(): SavedAccount[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) as SavedAccount[] : []
-  } catch {
-    return []
-  }
-}
-
-function saveAccounts(accounts: SavedAccount[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
-}
-
 function App() {
-  const [accounts, setAccounts] = useState<SavedAccount[]>(getAccounts)
-
   const [screen, setScreen] = useState<Screen>('login')
   const [activeAccount, setActiveAccount] = useState<SavedAccount | null>(null)
 
@@ -94,16 +89,6 @@ function App() {
       style: 'currency',
       currency: 'MXN',
     }).format(cents / 100)
-
-  const updateAccount = (updatedAccount: SavedAccount) => {
-    const updatedAccounts = accounts.map(account =>
-      account.phone === updatedAccount.phone ? updatedAccount : account
-    )
-
-    saveAccounts(updatedAccounts)
-    setAccounts(updatedAccounts)
-    setActiveAccount(updatedAccount)
-  }
 
   const categorizeExpense = (merchant: string): ExpenseCategory => {
     const name = merchant.toLowerCase()
@@ -136,20 +121,6 @@ function App() {
     return 'Otros'
   }
 
-  const createTransaction = (
-    description: string,
-    amountCents: number,
-    type: Transaction['type'],
-    category?: ExpenseCategory
-  ): Transaction => ({
-    id: Date.now(),
-    date: new Date().toISOString(),
-    description,
-    amountCents,
-    type,
-    ...(category ? { category } : {}),
-  })
-
   const parseAmount = (value: string): number | null => {
     if (!/^\d+(\.\d{1,2})?$/.test(value.trim())) return null
 
@@ -160,272 +131,281 @@ function App() {
     return cents
   }
 
- const handleRegister = async (e: FormEvent<HTMLFormElement>) => {
-  e.preventDefault()
-  if (loading) return
+  const loadAccount = async (userId: string): Promise<SavedAccount> => {
+    const [
+      { data: profile, error: profileError },
+      { data: account, error: accountError },
+      { data: rows, error: transactionsError },
+    ] = await Promise.all([
+      supabase.from('profiles').select('full_name, phone').eq('id', userId).single(),
+      supabase.from('kampus_accounts').select('id, clabe, balance_cents, savings_cents').eq('user_id', userId).single(),
+      supabase.from('transactions').select('id, created_at, description, amount_cents, type, category').eq('user_id', userId).order('created_at', { ascending: false }),
+    ])
 
-  const nameParts = name.trim().split(/\s+/)
-
-  if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
-    setError('Ingresa tu nombre y al menos un apellido.')
-    return
-  }
-
-  if (!/^\d{10}$/.test(phone)) {
-    setError('Ingresa un celular válido de 10 dígitos.')
-    return
-  }
-
-  if (password.length < 6) {
-    setError('Tu contraseña debe tener al menos 6 caracteres.')
-    return
-  }
-
-  if (!kycApproved) {
-    setError('Activa la verificación simulada para continuar.')
-    return
-  }
-
-  setError('')
-  setLoading(true)
-
-  try {
-    const internalEmail = `52${phone}@kampus-demo.invalid`
-
-    const { data, error: authError } = await supabase.auth.signUp({
-      email: internalEmail,
-      password,
-      options: {
-        data: {
-          full_name: name.trim(),
-          phone,
-        },
-      },
-    })
-
-    if (authError) throw authError
-
-    if (!data.user || !data.session) {
-      throw new Error('No se pudo iniciar la sesión después del registro.')
-    }
-
-    const { error: accountError } = await supabase.rpc(
-      'create_kampus_account',
-      {
-        p_full_name: name.trim(),
-        p_phone: phone,
-      }
-    )
-
+    if (profileError) throw profileError
     if (accountError) throw accountError
+    if (transactionsError) throw transactionsError
+    if (!profile || !account) throw new Error('No encontramos la cuenta de Kampus.')
 
-    setScreen('registration-success')
-  } catch (err) {
-    setError(
-      err instanceof Error
-        ? err.message
-        : 'No pudimos completar tu registro.'
-    )
-  } finally {
-    setLoading(false)
+    const accountRow = account as AccountRow
+    const transactionRows = (rows || []) as TransactionRow[]
+
+    return {
+      id: accountRow.id,
+      name: profile.full_name,
+      phone: profile.phone,
+      clabe: accountRow.clabe,
+      balanceCents: Number(accountRow.balance_cents),
+      savingsCents: Number(accountRow.savings_cents),
+      opened: true,
+      transactions: transactionRows.map(transaction => ({
+        id: transaction.id,
+        date: transaction.created_at,
+        description: transaction.description,
+        amountCents: Number(transaction.amount_cents),
+        type: transaction.type,
+        ...(transaction.category ? { category: transaction.category } : {}),
+      })),
+    }
   }
-}
 
-  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+  const handleRegister = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (loading) return
 
+    const nameParts = name.trim().split(/\s+/)
+    if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
+      setError('Ingresa tu nombre y al menos un apellido.')
+      return
+    }
+    if (!/^\d{10}$/.test(phone)) {
+      setError('Ingresa un celular válido de 10 dígitos.')
+      return
+    }
+    if (password.length < 6) {
+      setError('Tu contraseña debe tener al menos 6 caracteres.')
+      return
+    }
+    if (!kycApproved) {
+      setError('Activa la verificación simulada para continuar.')
+      return
+    }
+
+    setError('')
+    setLoading(true)
+    try {
+      const internalEmail = `52${phone}@kampus-demo.invalid`
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: internalEmail,
+        password,
+        options: { data: { full_name: name.trim(), phone } },
+      })
+      if (authError) throw authError
+      if (!data.user) throw new Error('No se pudo crear el usuario de demostración.')
+
+      if (!data.session) {
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({ email: internalEmail, password })
+        if (signInError || !signInData.user) {
+          throw new Error('El usuario se creó, pero no se pudo iniciar sesión. Revisa la configuración de confirmación de correo en Supabase.')
+        }
+      }
+
+      const { error: accountError } = await supabase.rpc('create_kampus_account', {
+        p_full_name: name.trim(),
+        p_phone: phone,
+      })
+      if (accountError) throw accountError
+      setScreen('registration-success')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos completar tu registro.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (loading) return
     if (!/^\d{10}$/.test(loginPhone)) {
       setError('Ingresa tu celular de 10 dígitos.')
       return
     }
 
-    const account = accounts.find(
-      item =>
-        item.phone === loginPhone &&
-        item.password === loginPassword &&
-        item.opened
-    )
-
-    if (!account) {
-      setError('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
-      return
-    }
-
     setError('')
     setLoading(true)
+    try {
+      const email = `52${loginPhone}@kampus-demo.invalid`
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: loginPassword,
+      })
+      if (authError) throw new Error('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
+      if (!data.user) throw new Error('No se pudo iniciar sesión.')
 
-    window.setTimeout(() => {
+      const account = await loadAccount(data.user.id)
       setActiveAccount(account)
-      setLoading(false)
       setScreen('dashboard')
-    }, 500)
-  }
-
-  const handleOpenAccount = () => {
-    if (loading) return
-
-    setLoading(true)
-
-    window.setTimeout(() => {
-      const newAccount: SavedAccount = {
-        name: name.trim(),
-        phone,
-        password,
-        clabe: '000000000000000000',
-        balanceCents: 0,
-        savingsCents: 0,
-        opened: true,
-        transactions: [],
-      }
-
-      const updatedAccounts = [...accounts, newAccount]
-
-      saveAccounts(updatedAccounts)
-      setAccounts(updatedAccounts)
-      setActiveAccount(newAccount)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos iniciar sesión.')
+    } finally {
       setLoading(false)
-      setScreen('account-opened')
-    }, 1000)
+    }
   }
 
-  const handleReceiveMoney = (e: FormEvent<HTMLFormElement>) => {
+  const handleOpenAccount = async () => {
+    if (loading) return
+    setError('')
+    setLoading(true)
+    try {
+      const { data, error: userError } = await supabase.auth.getUser()
+      if (userError || !data.user) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.')
+      const account = await loadAccount(data.user.id)
+      setActiveAccount(account)
+      setScreen('account-opened')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos mostrar tu cuenta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const applyTransaction = async (
+    description: string,
+    amountCents: number,
+    type: Transaction['type'],
+    category: ExpenseCategory | null = null
+  ) => {
+    const { data, error: rpcError } = await supabase.rpc('register_kampus_transaction', {
+      p_description: description,
+      p_amount_cents: amountCents,
+      p_type: type,
+      p_category: category,
+    })
+    if (rpcError) throw rpcError
+
+    const result = data as { account: AccountRow; transaction: TransactionRow }
+    if (!result?.account || !result?.transaction) {
+      throw new Error('No recibimos la confirmación del movimiento.')
+    }
+
+    const updatedAccount: SavedAccount = {
+      ...(activeAccount as SavedAccount),
+      id: result.account.id,
+      clabe: result.account.clabe,
+      balanceCents: Number(result.account.balance_cents),
+      savingsCents: Number(result.account.savings_cents),
+      transactions: [{
+        id: result.transaction.id,
+        date: result.transaction.created_at,
+        description: result.transaction.description,
+        amountCents: Number(result.transaction.amount_cents),
+        type: result.transaction.type,
+        ...(result.transaction.category ? { category: result.transaction.category } : {}),
+      }, ...(activeAccount?.transactions || [])],
+    }
+    setActiveAccount(updatedAccount)
+  }
+
+  const handleReceiveMoney = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(receiveAmount)
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
-    const transaction = createTransaction(
-      receiveSender.trim() || 'Transferencia recibida',
-      amountCents,
-      'transfer-in'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: activeAccount.balanceCents + amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setReceiveAmount('')
-    setReceiveSender('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      await applyTransaction(receiveSender.trim() || 'Transferencia recibida', amountCents, 'transfer-in')
+      setReceiveAmount('')
+      setReceiveSender('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar la transferencia simulada.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handlePayment = (e: FormEvent<HTMLFormElement>) => {
+  const handlePayment = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(purchaseAmount)
-
     if (!purchaseMerchant.trim()) {
       setError('Ingresa el nombre del comercio.')
       return
     }
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
     if (amountCents > activeAccount.balanceCents) {
       setError('Pago rechazado: no tienes saldo suficiente.')
       return
     }
 
-    const category = categorizeExpense(purchaseMerchant)
-
-    const transaction = createTransaction(
-      `Compra en ${purchaseMerchant.trim()}`,
-      amountCents,
-      'purchase',
-      category
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: activeAccount.balanceCents - amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setPurchaseAmount('')
-    setPurchaseMerchant('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      await applyTransaction(`Compra en ${purchaseMerchant.trim()}`, amountCents, 'purchase', categorizeExpense(purchaseMerchant))
+      setPurchaseAmount('')
+      setPurchaseMerchant('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el pago simulado.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleSavingsMovement = (e: FormEvent<HTMLFormElement>) => {
+  const handleSavingsMovement = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(savingsAmount)
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
-    const currentSavings = activeAccount.savingsCents || 0
-
+    const currentSavings = activeAccount.savingsCents
     if (savingsAction === 'deposit' && amountCents > activeAccount.balanceCents) {
       setError('No tienes suficiente saldo disponible para ahorrar.')
       return
     }
-
     if (savingsAction === 'withdraw' && amountCents > currentSavings) {
       setError('No tienes suficiente dinero en tu apartado de ahorro.')
       return
     }
 
-    const isDeposit = savingsAction === 'deposit'
-
-    const transaction = createTransaction(
-      isDeposit ? 'Dinero apartado en ahorro' : 'Retiro de ahorro',
-      amountCents,
-      isDeposit ? 'savings-deposit' : 'savings-withdrawal'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: isDeposit
-        ? activeAccount.balanceCents - amountCents
-        : activeAccount.balanceCents + amountCents,
-      savingsCents: isDeposit
-        ? currentSavings + amountCents
-        : currentSavings - amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setSavingsAmount('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      const isDeposit = savingsAction === 'deposit'
+      await applyTransaction(
+        isDeposit ? 'Dinero apartado en ahorro' : 'Retiro de ahorro',
+        amountCents,
+        isDeposit ? 'savings-deposit' : 'savings-withdrawal'
+      )
+      setSavingsAmount('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el movimiento de ahorro.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  
-  const handleLogout = () => {
-    setActiveAccount(null)
-    setLoginPhone('')
-    setLoginPassword('')
-    setError('')
-    setScreen('login')
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      setActiveAccount(null)
+      setLoginPhone('')
+      setLoginPassword('')
+      setError('')
+      setScreen('login')
+    }
   }
 
   const currentSavings = activeAccount?.savingsCents || 0
@@ -472,8 +452,7 @@ function App() {
   const savingsTransactions = (activeAccount?.transactions || []).filter(
     transaction =>
       transaction.type === 'savings-deposit' ||
-      transaction.type === 'savings-withdrawal' ||
-      transaction.type === 'savings-interest'
+      transaction.type === 'savings-withdrawal'
   )
 
   const netSavingsMovements = savingsTransactions.reduce(
@@ -754,6 +733,8 @@ function App() {
               </div>
               <span>DEMO</span>
             </div>
+
+            {error && <p className="error-message" role="alert">{error}</p>}
 
             <button onClick={handleOpenAccount} disabled={loading}>
               {loading ? 'Abriendo cuenta...' : 'Abrir cuenta de demostración →'}
@@ -1283,8 +1264,7 @@ function App() {
                   (activeAccount.transactions || []).map(transaction => {
                     const isIncome =
                       transaction.type === 'transfer-in' ||
-                      transaction.type === 'savings-withdrawal' ||
-                      transaction.type === 'savings-interest'
+                      transaction.type === 'savings-withdrawal'
 
                     return (
                       <div className="verification" key={transaction.id}>
