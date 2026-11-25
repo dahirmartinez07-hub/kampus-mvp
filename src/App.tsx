@@ -934,7 +934,7 @@ function App() {
             <p className="eyebrow">AHORRO</p>
             <h1>Haz crecer tu ahorro.</h1>
             <p className="subtitle">
-              Separa dinero y consulta tu rendimiento simulado.
+              Separa dinero y consulta tu rendimiento estimado.
             </p>
 
             <div className="verification">
