@@ -426,12 +426,31 @@ function App() {
   }
 
   const handleLogout = () => {
-    setActiveAccount(null)
-    setLoginPhone('')
-    setLoginPassword('')
-    setError('')
-    setScreen('login')
-  }
+  setActiveAccount(null)
+
+  // Limpiar datos de registro
+  setName('')
+  setPhone('')
+  setPassword('')
+  setKycApproved(false)
+
+  // Limpiar datos de inicio de sesión
+  setLoginPhone('')
+  setLoginPassword('')
+
+  // Limpiar formularios de operaciones
+  setReceiveAmount('')
+  setReceiveSender('')
+  setPurchaseAmount('')
+  setPurchaseMerchant('')
+  setSavingsAmount('')
+  setSavingsAction('deposit')
+
+  // Limpiar estados de la aplicación
+  setShowTransactions(false)
+  setError('')
+  setScreen('login')
+}
 
   const currentSavings = activeAccount?.savingsCents || 0
 
