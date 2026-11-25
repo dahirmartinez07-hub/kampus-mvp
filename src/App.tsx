@@ -1111,6 +1111,23 @@ function App() {
                 <p>Pesos mexicanos · Saldo de demostración</p>
               </div>
             </div>
+                        <div className="dashboard-actions">
+              <button onClick={() => setScreen('receive-money')}>
+                + Recibir dinero
+              </button>
+
+              <button onClick={() => setScreen('make-payment')}>
+                Pagar con tarjeta →
+              </button>
+
+              <button onClick={() => {
+                setSavingsAction('deposit')
+                setError('')
+                setScreen('savings')
+              }}>
+                Mi ahorro →
+              </button>
+            </div>
 
             <div className="verification">
               <div>
@@ -1317,22 +1334,6 @@ function App() {
 
             <button onClick={() => setScreen('account-opened')}>
               Ver información de mi cuenta
-            </button>
-
-            <button onClick={() => setScreen('receive-money')}>
-              + Recibir dinero
-            </button>
-
-            <button onClick={() => setScreen('make-payment')}>
-              Pagar con tarjeta →
-            </button>
-
-            <button onClick={() => {
-              setSavingsAction('deposit')
-              setError('')
-              setScreen('savings')
-            }}>
-              Mi ahorro →
             </button>
 
             <button className="secondary-button" onClick={handleLogout}>
