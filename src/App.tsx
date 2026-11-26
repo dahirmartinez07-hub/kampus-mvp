@@ -68,8 +68,8 @@ function App() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
-  const [identityDocument, setIdentityDocument] = useState<File | null>(null)
-  const [identitySelfie, setIdentitySelfie] = useState<File | null>(null)
+  const [identityDocumentVerified, setIdentityDocumentVerified] = useState(false)
+  const [identityFaceVerified, setIdentityFaceVerified] = useState(false)
   const [otpRequired, setOtpRequired] = useState(false)
   const [demoOtp, setDemoOtp] = useState('')
   const [otpInput, setOtpInput] = useState('')
@@ -207,8 +207,8 @@ function App() {
       setError('Debes aceptar los términos y condiciones y confirmar que leíste el aviso de privacidad.')
       return
     }
-    if (!identityDocument || !identitySelfie) {
-      setError('Selecciona una imagen de ejemplo de tu identificación y una selfie de prueba para completar la verificación simulada.')
+    if (!identityDocumentVerified || !identityFaceVerified) {
+      setError('Completa las dos verificaciones simuladas para continuar.')
       return
     }
 
@@ -254,8 +254,8 @@ function App() {
       }
 
       setPassword('')
-      setIdentityDocument(null)
-      setIdentitySelfie(null)
+      setIdentityDocumentVerified(false)
+      setIdentityFaceVerified(false)
       setScreen('registration-success')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pudimos completar tu registro.')
@@ -489,8 +489,8 @@ function App() {
       setName('')
       setPhone('')
       setPassword('')
-      setIdentityDocument(null)
-      setIdentitySelfie(null)
+      setIdentityDocumentVerified(false)
+      setIdentityFaceVerified(false)
       setAdultConfirmed(false)
       setTermsAccepted(false)
       setPrivacyAccepted(false)
@@ -731,6 +731,8 @@ function App() {
               className="secondary-button"
               onClick={() => {
                 setError('')
+                setIdentityDocumentVerified(false)
+                setIdentityFaceVerified(false)
                 setScreen('register')
               }}
             >
@@ -797,30 +799,45 @@ function App() {
               />
 
               <div className="verification" style={{ display: 'block', textAlign: 'left' }}>
-                <strong>Verificación de identidad</strong>
-                <p>Sube imágenes de ejemplo para simular la revisión de identidad.</p>
-                <label htmlFor="identityDocument">Identificación de prueba (INE o credencial escolar)</label>
-                <input
-                  id="identityDocument"
-                  type="file"
-                  accept="image/*"
-                  onChange={e => setIdentityDocument(e.target.files?.[0] || null)}
-                  disabled={loading}
-                />
-                {identityDocument && <p className="security">Archivo seleccionado: {identityDocument.name}</p>}
-                <label htmlFor="identitySelfie">Selfie de prueba</label>
-                <input
-                  id="identitySelfie"
-                  type="file"
-                  accept="image/*"
-                  onChange={e => setIdentitySelfie(e.target.files?.[0] || null)}
-                  disabled={loading}
-                />
-                {identitySelfie && <p className="security">Archivo seleccionado: {identitySelfie.name}</p>}
-                <p className="security">Usa únicamente imágenes ficticias. Los archivos solo se seleccionan en este navegador; no se suben ni se guardan en Kampus.</p>
-              </div>
+  <strong>Verificación de identidad</strong>
+  <p>Completa las siguientes verificaciones para continuar con tu registro.</p>
 
-              <div style={{ display: 'grid', gap: '12px', margin: '18px 0', textAlign: 'left' }}>
+  <div style={{ marginTop: '16px' }}>
+    <strong>1. Verificación de identificación</strong>
+    <p>Simula la revisión de tu INE o credencial escolar.</p>
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => {
+        setIdentityDocumentVerified(true)
+        setError('')
+      }}
+      disabled={loading || identityDocumentVerified}
+    >
+      {identityDocumentVerified ? '✓ Identificación verificada' : 'Simular verificación de identificación'}
+    </button>
+  </div>
+
+  <div style={{ marginTop: '16px' }}>
+    <strong>2. Verificación facial</strong>
+    <p>Simula la comparación de identidad y rostro.</p>
+    <button
+      type="button"
+      className="secondary-button"
+      onClick={() => {
+        setIdentityFaceVerified(true)
+        setError('')
+      }}
+      disabled={loading || identityFaceVerified}
+    >
+      {identityFaceVerified ? '✓ Verificación facial completada' : 'Simular verificación facial'}
+    </button>
+  </div>
+
+  <p className="security">
+    Ambas verificaciones son demostrativas. No se utiliza la cámara, no se solicitan imágenes y no se realiza una validación biométrica real.
+  </p>
+</div>
                 <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
