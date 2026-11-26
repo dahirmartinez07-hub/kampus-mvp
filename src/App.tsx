@@ -389,7 +389,25 @@ function App() {
 
   const handleSimulateInterest = () => {
     if (!activeAccount) return
+    const now = new Date()
 
+const alreadyCreditedThisMonth = (
+  activeAccount.transactions || []
+).some(transaction => {
+  if (transaction.type !== 'savings-interest') return false
+
+  const transactionDate = new Date(transaction.date)
+
+  return (
+    transactionDate.getMonth() === now.getMonth() &&
+    transactionDate.getFullYear() === now.getFullYear()
+  )
+})
+
+if (alreadyCreditedThisMonth) {
+  setError('El rendimiento simulado de este mes ya fue registrado.')
+  return
+}
     const currentSavings = activeAccount.savingsCents || 0
 
     if (currentSavings <= 0) {
@@ -426,12 +444,31 @@ function App() {
   }
 
   const handleLogout = () => {
-    setActiveAccount(null)
-    setLoginPhone('')
-    setLoginPassword('')
-    setError('')
-    setScreen('login')
-  }
+  setActiveAccount(null)
+
+  // Limpiar datos de registro
+  setName('')
+  setPhone('')
+  setPassword('')
+  setKycApproved(false)
+
+  // Limpiar datos de inicio de sesión
+  setLoginPhone('')
+  setLoginPassword('')
+
+  // Limpiar formularios de operaciones
+  setReceiveAmount('')
+  setReceiveSender('')
+  setPurchaseAmount('')
+  setPurchaseMerchant('')
+  setSavingsAmount('')
+  setSavingsAction('deposit')
+
+  // Limpiar estados de la aplicación
+  setShowTransactions(false)
+  setError('')
+  setScreen('login')
+}
 
   const currentSavings = activeAccount?.savingsCents || 0
 
@@ -1148,7 +1185,10 @@ function App() {
                   <p>
                     {currentMonthPurchases.filter(
                       transaction => transaction.category === item.category
-                    ).length} compras
+                    ).length}{' '}
+                    {currentMonthPurchases.filter(
+                        transaction => transaction.category === item.category
+                    ).length === 1 ? 'compra' : 'compras'}
                   </p>
                   <div
                     style={{
