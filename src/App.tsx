@@ -893,7 +893,6 @@ function App() {
                   />
                   <span>Confirmo que leí el aviso de privacidad.</span>
                 </label>
-              </div>
 
               {error && <p className="error" role="alert">{error}</p>}
 
