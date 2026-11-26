@@ -58,6 +58,8 @@ type TransactionRow = {
 }
 
 const ANNUAL_RATE = 0.05
+const TERMS_VERSION = 'KAMPUS-DEMO-1.0'
+const PRIVACY_VERSION = 'KAMPUS-PRIVACY-DEMO-1.0'
 
 function App() {
   const [screen, setScreen] = useState<Screen>('login')
@@ -67,6 +69,9 @@ function App() {
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [kycApproved, setKycApproved] = useState(false)
+  const [adultConfirmed, setAdultConfirmed] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
   const [loginPhone, setLoginPhone] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -173,21 +178,32 @@ function App() {
     e.preventDefault()
     if (loading) return
 
-    const nameParts = name.trim().split(/\s+/)
-    if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
-      setError('Ingresa tu nombre y al menos un apellido.')
+    const normalizedName = name.trim().replace(/\s+/g, ' ')
+    const nameParts = normalizedName.split(' ')
+    const validName = /^[\p{L}][\p{L} .'-]*$/u.test(normalizedName)
+
+    if (!validName || nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
+      setError('Ingresa tu nombre y al menos un apellido, sin números ni caracteres inválidos.')
       return
     }
     if (!/^\d{10}$/.test(phone)) {
       setError('Ingresa un celular válido de 10 dígitos.')
       return
     }
-    if (password.length < 6) {
-      setError('Tu contraseña debe tener al menos 6 caracteres.')
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
+      setError('La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.')
+      return
+    }
+    if (!adultConfirmed) {
+      setError('Debes confirmar que tienes 18 años o más para continuar.')
+      return
+    }
+    if (!termsAccepted || !privacyAccepted) {
+      setError('Debes aceptar los términos y condiciones y confirmar que leíste el aviso de privacidad.')
       return
     }
     if (!kycApproved) {
-      setError('Activa la verificación simulada para continuar.')
+      setError('Completa la verificación de identidad simulada para continuar.')
       return
     }
 
@@ -198,9 +214,15 @@ function App() {
       const { data, error: authError } = await supabase.auth.signUp({
         email: internalEmail,
         password,
-        options: { data: { full_name: name.trim(), phone } },
+        options: { data: { full_name: normalizedName, phone } },
       })
-      if (authError) throw authError
+      if (authError) {
+        if (authError.message.toLowerCase().includes('already registered') ||
+            authError.message.toLowerCase().includes('already exists')) {
+          throw new Error('Este número ya está registrado. Inicia sesión con tu cuenta.')
+        }
+        throw authError
+      }
       if (!data.user) throw new Error('No se pudo crear el usuario de demostración.')
 
       if (!data.session) {
@@ -212,10 +234,20 @@ function App() {
       }
 
       const { error: accountError } = await supabase.rpc('create_kampus_account', {
-        p_full_name: name.trim(),
+        p_full_name: normalizedName,
         p_phone: phone,
       })
       if (accountError) throw accountError
+
+      const { error: consentError } = await supabase.rpc('record_kampus_consents', {
+        p_terms_version: TERMS_VERSION,
+        p_privacy_version: PRIVACY_VERSION,
+        p_adult_confirmed: true,
+      })
+      if (consentError) {
+        throw new Error('Tu usuario y cuenta se crearon, pero no pudimos guardar las aceptaciones. No vuelvas a registrarte; revisaremos la configuración de consentimientos.')
+      }
+
       setScreen('registration-success')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pudimos completar tu registro.')
@@ -566,6 +598,7 @@ function App() {
                   placeholder="10 dígitos"
                   maxLength={10}
                   inputMode="numeric"
+                  autoComplete="off"
                   value={loginPhone}
                   onChange={e => {
                     setLoginPhone(e.target.value.replace(/\D/g, ''))
@@ -580,6 +613,7 @@ function App() {
                 id="loginPassword"
                 type="password"
                 placeholder="Tu contraseña"
+                autoComplete="current-password"
                 value={loginPassword}
                 onChange={e => {
                   setLoginPassword(e.target.value)
@@ -641,9 +675,10 @@ function App() {
                   placeholder="10 dígitos"
                   maxLength={10}
                   inputMode="numeric"
+                  autoComplete="tel-national"
                   value={phone}
                   onChange={e => {
-                    setPhone(e.target.value.replace(/\D/g, ''))
+                    setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
                     setError('')
                   }}
                   disabled={loading}
@@ -654,7 +689,8 @@ function App() {
               <input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="8 caracteres, mayúscula, minúscula y número"
+                autoComplete="new-password"
                 value={password}
                 onChange={e => {
                   setPassword(e.target.value)
@@ -682,6 +718,64 @@ function App() {
                 </label>
               </div>
 
+              <div style={{ display: 'grid', gap: '12px', margin: '18px 0', textAlign: 'left' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={adultConfirmed}
+                    onChange={e => {
+                      setAdultConfirmed(e.target.checked)
+                      setError('')
+                    }}
+                    disabled={loading}
+                  />
+                  <span>Declaro que tengo 18 años o más.</span>
+                </label>
+
+                <details style={{ background: '#F5F7FB', borderRadius: '10px', padding: '12px 14px', fontSize: '13px', lineHeight: 1.55, color: '#526176' }}>
+                  <summary style={{ cursor: 'pointer', color: '#1D4E8F', fontWeight: 600 }}>Leer términos y condiciones de la demostración</summary>
+                  <p><strong>Versión {TERMS_VERSION}</strong></p>
+                  <p>Kampus es un prototipo académico. La cuenta, la CLABE, la tarjeta, los saldos, los depósitos, los pagos y los rendimientos son ficticios. Esta plataforma no es una institución financiera, no custodia fondos y no procesa transferencias ni pagos reales.</p>
+                  <p>El usuario se compromete a utilizar datos ficticios durante las pruebas, mantener la confidencialidad de su contraseña y no intentar utilizar el prototipo para operaciones reales. Las funciones pueden cambiar o dejar de estar disponibles durante el desarrollo.</p>
+                </details>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={termsAccepted}
+                    onChange={e => {
+                      setTermsAccepted(e.target.checked)
+                      setError('')
+                    }}
+                    disabled={loading}
+                  />
+                  <span>He leído y acepto los términos y condiciones.</span>
+                </label>
+
+                <details style={{ background: '#F5F7FB', borderRadius: '10px', padding: '12px 14px', fontSize: '13px', lineHeight: 1.55, color: '#526176' }}>
+                  <summary style={{ cursor: 'pointer', color: '#1D4E8F', fontWeight: 600 }}>Leer aviso de privacidad de la demostración</summary>
+                  <p><strong>Versión {PRIVACY_VERSION}</strong></p>
+                  <p>Para este prototipo se utilizan datos de prueba como nombre, teléfono ficticio, identificador de usuario y registros de movimientos simulados. La información se almacena en la base de datos de demostración de Kampus para permitir el funcionamiento de la cuenta y las pruebas del proyecto.</p>
+                  <p>No ingreses información personal real, documentos oficiales, datos bancarios reales ni contraseñas que utilices en otros servicios. Los datos de prueba podrán eliminarse como parte del mantenimiento del prototipo.</p>
+                </details>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={privacyAccepted}
+                    onChange={e => {
+                      setPrivacyAccepted(e.target.checked)
+                      setError('')
+                    }}
+                    disabled={loading}
+                  />
+                  <span>Confirmo que leí el aviso de privacidad.</span>
+                </label>
+              </div>
+
               {error && <p className="error" role="alert">{error}</p>}
 
               <button type="submit" disabled={loading}>
@@ -695,6 +789,7 @@ function App() {
                 setError('')
                 setScreen('login')
               }}
+              disabled={loading}
             >
               Ya tengo una cuenta
             </button>
