@@ -1,112 +1,141 @@
 # BITACORA.md — Kampus
 
-Registro de sesiones de trabajo con IA en este proyecto. Cada entrada documenta el objetivo, lo que hizo la IA y lo que el equipo decidió a partir de eso.
+Log of AI-assisted work sessions for this project. Each entry documents the objective, the work performed by AI, and the decisions made by the team as a result.
 
 ---
 
-## Entrada 1 — 27 de agosto de 2026
+## Entry 1 — August 27, 2026
 
-**Objetivo:** Definir el vehículo regulatorio de Kampus y armar el deck para la entrega del 30 de agosto (slides 1–7, con diagramas en las slides 3 y 5), además de dejar configurados AGENTS.md, SPEC.md y BITACORA.md.
+**Objective:** Define Kampus' regulatory framework and prepare the presentation deck for the August 30 submission (slides 1–7, including diagrams on slides 3 and 5), as well as configure `AGENTS.md`, `SPEC.md`, and `BITACORA.md`.
 
-**Qué hizo la IA:**
-- Ayudó a responder las tres preguntas regulatorias (¿custodiamos dinero? sí; ¿prestamos? no; ¿pagamos rendimiento? sí) y a justificar cada respuesta desde el producto, no desde la teoría.
-- Propuso el modelo de vehículo: operar como capa tecnológica (Banking-as-a-Service) sobre un banco o SOFIPO ya licenciados, en lugar de que Kampus tramite su propia licencia — por ser la ruta realista para un equipo en etapa de proyecto escolar/MVP.
-- Construyó el diagrama de flujo de dinero (usuario, Kampus, institución partner, comercio + red de tarjetas) con los cuatro pagos numerados y su explicación.
-- Calculó las métricas de la slide 6 (CAC, ARPU, margen, churn, LTV, LTV/CAC, payback) a partir de asunciones explícitas, y señaló que el margen de interés neto no aplica directamente al modelo de Kampus porque no invertimos los depósitos nosotros mismos.
-- Generó el archivo .pptx con los 7 slides y los tres archivos de proyecto (AGENTS.md, SPEC.md, BITACORA.md) configurados para Kampus.
+**What the AI did:**
 
-**Qué decidió el equipo:**
-- Aceptar el vehículo BaaS como respuesta de la slide 4, entendiendo que se puede corregir en clase el martes si el profesor identifica una figura más apropiada.
-- Usar a Mariana Torres (estudiante de Contaduría, Campus Guadalajara) como el usuario nombrado de la slide 2, y confirmar que es un perfil que el equipo puede efectivamente contactar y entrevistar en septiembre.
-- Dejar pendiente para la próxima entrada: validar el CAC de $150 MXN y el churn de 4% con al menos 3 conversaciones informales con estudiantes del campus, antes de la defensa de números del martes.
+- Helped answer the three regulatory questions (Do we hold funds? Yes; Do we lend money? No; Do we pay returns? Yes) and justify each answer based on the product rather than theory.
+- Proposed the operating model: operate as a technology layer (Banking-as-a-Service) on top of an already licensed bank or SOFIPO, rather than having Kampus obtain its own license, as this was the most realistic route for a team at the academic project/MVP stage.
+- Created the money flow diagram (user, Kampus, partner institution, merchant + card network), including the four numbered payment steps and their explanations.
+- Calculated the metrics for slide 6 (CAC, ARPU, margin, churn, LTV, LTV/CAC, and payback) based on explicit assumptions, and pointed out that net interest margin does not directly apply to the Kampus model because we do not invest deposits ourselves.
+- Generated the `.pptx` file with all 7 slides and the three project files (`AGENTS.md`, `SPEC.md`, and `BITACORA.md`) configured for Kampus.
 
----
+**What the team decided:**
 
-## Entrada 2 — 22 de septiembre de 2026
-
-**Objetivo:** avanzar el proyecto en dos frentes — dejar por escrito el razonamiento regulatorio en un formato más formal, y construir el entregable del sprint en clase (job statements, guía de entrevista, tabla de competidores + 2×2, hipótesis rankeadas) siguiendo la metodología vista en la Sesión 14.
-
-**Qué se le pidió a la IA y qué hizo, en orden:**
-
-1. El equipo pidió separar el contenido de las slides 2 y 3 (usuario/problema y las tres preguntas) en un documento aparte, para tenerlo como respaldo escrito independiente del diagrama. La IA extrajo ese contenido a un documento nuevo.
-2. El equipo pidió un memo más técnico que capturara todo el razonamiento discutido hasta ese punto — no solo el resultado, sino el porqué de cada decisión. La IA redactó un memo formal cubriendo el perímetro regulatorio, la selección del vehículo, la arquitectura del flujo de fondos, el modelo de unidad económica y los riesgos.
-3. El equipo pidió que ambos documentos fueran Word y no Markdown, para poder entregarlos o imprimirlos directamente. La IA los reconstruyó como .docx con tablas formateadas.
-4. El equipo compartió una foto de la slide del profesor ("Today's sprint: build your interview guide") y pidió construir ese entregable usando el trabajo ya hecho de Kampus y Mariana. La IA generó los job statements, una guía de 10 preguntas, una tabla de 6 competidores con un 2×2, y 3 hipótesis rankeadas.
-5. El equipo después compartió la presentación completa del profesor (con la anatomía exacta de la entrevista, los tiempos por bloque, y el template de hipótesis) y pidió ajustar lo ya construido para que calzara con esa plantilla. La IA reescribió la guía de entrevista con bloques de 5/5/15/5 minutos y preguntas estilo Mom Test, reclasificó a los competidores como Direct/Indirect/Incumbent/Status quo, y reescribió las hipótesis en el formato exacto "We believe... struggles with... when... We'll know we're right if...".
-6. El equipo pidió actualizar esta bitácora para que reflejara con más detalle las preguntas y ajustes que se hicieron durante la sesión, en lugar de resumir todo en una sola entrada genérica.
-
-**Qué decidió el equipo:**
-- Mantener la hipótesis de Value como la más riesgosa y la primera en validarse en las entrevistas.
-- Tratar las posiciones del 2×2 como punto de partida, no como respuesta definitiva — se ajustan según lo que digan los entrevistados.
-- Agendar las primeras dos entrevistas antes de la próxima clase, tal como pidió el profesor.
+- Accept the BaaS model as the answer for slide 4, understanding that it could be revised in class on Tuesday if the professor identified a more appropriate structure.
+- Use Mariana Torres (Accounting student, Guadalajara Campus) as the named user persona on slide 2, and confirm that she is someone the team could actually contact and interview in September.
+- Leave the following task for the next entry: validate the MXN $150 CAC and 4% churn assumptions through at least three informal conversations with campus students before the Tuesday presentation of the financial figures.
 
 ---
 
-<!-- Copiar el bloque de abajo para cada nueva sesión de trabajo con IA -->
-<!--
-## Entrada N — [fecha]
+## Entry 2 — September 22, 2026
 
-**Objetivo:**
+**Objective:** Move the project forward on two fronts: formally document the regulatory reasoning and build the in-class sprint deliverable (job statements, interview guide, competitor table + 2×2 matrix, and ranked hypotheses), following the methodology covered in Session 14.
 
-**Qué hizo la IA:**
+**What was requested from the AI and what it did, in order:**
 
-**Qué decidió el equipo:**
--->
-## Entrada 3 — 11 de noviembre de 2026
+1. The team requested that the content from slides 2 and 3 (user/problem and the three regulatory questions) be separated into an independent document, so it could serve as written supporting material alongside the diagram. The AI extracted that content into a new document.
+2. The team requested a more technical memo documenting all the reasoning discussed up to that point, including not only the decisions but also the rationale behind each one. The AI drafted a formal memo covering the regulatory scope, selection of the operating model, fund flow architecture, unit economics, and risks.
+3. The team requested that both documents be delivered in Word format rather than Markdown, so they could be submitted or printed directly. The AI recreated them as `.docx` files with formatted tables.
+4. The team shared a photo of the professor's slide ("Today's sprint: build your interview guide") and requested that the deliverable be built using the work already completed for Kampus and Mariana. The AI generated the job statements, a 10-question interview guide, a table of 6 competitors with a 2×2 matrix, and 3 ranked hypotheses.
+5. The team subsequently shared the professor's complete presentation, which included the exact interview structure, time allocation for each section, and hypothesis template, and requested adjustments to match that format. The AI rewrote the interview guide using 5/5/15/5-minute sections and Mom Test-style questions, reclassified competitors as Direct/Indirect/Incumbent/Status quo, and rewrote the hypotheses using the exact format: "We believe... struggles with... when... We'll know we're right if...".
+6. The team requested an update to this log so that it would reflect the questions and adjustments made during the session in greater detail, rather than summarizing everything in one generic entry.
 
-**Objetivo:** preparar el entorno de desarrollo del MVP de Kampus, organizar la documentación del proyecto e implementar el primer paso del flujo central: el registro de usuarios.
+**What the team decided:**
 
-**Qué hizo la IA:**
-- Guió al equipo en la creación del proyecto web con React y TypeScript utilizando Vite.
-- Ayudó a configurar la pantalla de registro con campos de nombre completo y número celular.
-- Implementó una verificación simulada y una pantalla de confirmación de registro.
-- A partir de las decisiones, indicaciones y preferencias visuales compartidas por el equipo, ayudó a desarrollar y documentar los lineamientos de diseño de Kampus en `design.md`.
-- Ayudó a crear y organizar los archivos `AGENTS.md`, `SPEC.md`, `BITACORA.md` y `design.md`.
-- Guió la inicialización de Git y la creación del primer commit.
+- Keep the Value hypothesis as the riskiest assumption and the first one to validate through interviews.
+- Treat the positions in the 2×2 matrix as a starting point rather than a definitive answer; they will be adjusted based on interview findings.
+- Schedule the first two interviews before the next class, as requested by the professor.
 
-**Qué decidió el equipo:**
-- Utilizar una versión web con React y TypeScript como prototipo para este sprint.
-- Mantener la verificación de identidad en modo demostración, sin realizar un proceso real de KYC.
-- Dar por terminado el primer avance funcional del registro.
-- Guardar el avance con el commit `26c1903`, con el mensaje "Primer avance: registro funcional de Kampus".
+---
 
-## Entrada 4 — 11 de noviembre de 2026
+## Entry 3 — November 11, 2026
 
-**Objetivo:** continuar el desarrollo del MVP de Kampus, ampliar las funciones principales de la cuenta digital y comprobar que el proyecto pueda compilarse correctamente.
+**Objective:** Prepare the development environment for the Kampus MVP, organize the project documentation, and implement the first step of the core user flow: user registration.
 
-**Qué hizo la IA:**
+**What the AI did:**
 
-- Ayudó a implementar la recepción de dinero mediante transferencias simuladas, actualizando el saldo disponible y registrando los movimientos.
-- Desarrolló la función de pagos con tarjeta en modo demostración, incluyendo la validación de saldo suficiente antes de realizar un pago.
-- Incorporó un apartado de ahorro que permite mover dinero entre el saldo disponible y el ahorro.
-- Implementó una simulación de rendimientos mensuales sobre el ahorro, utilizando una tasa anual ilustrativa del 5%.
-- Agregó la clasificación automática de gastos por categorías, como comida, transporte, educación, entretenimiento y otros, mediante reglas basadas en palabras clave.
-- Incorporó un resumen de gastos del mes y la opción de consultar u ocultar los movimientos recientes.
-- Realizó ajustes visuales para mejorar el contraste, la legibilidad y la presentación del resumen de la cuenta.
+- Guided the team through creating the web project using React and TypeScript with Vite.
+- Helped configure the registration screen with full name and mobile phone number fields.
+- Implemented a simulated verification process and a registration confirmation screen.
+- Based on the decisions, instructions, and visual preferences shared by the team, helped develop and document Kampus' design guidelines in `design.md`.
+- Helped create and organize the `AGENTS.md`, `SPEC.md`, `BITACORA.md`, and `design.md` files.
+- Guided the initialization of Git and the creation of the first commit.
 
-**Qué decidió el equipo:**
+**What the team decided:**
 
-- Mantener las transferencias, los pagos y los rendimientos como simulaciones, sin conectarse a servicios bancarios reales.
-- Incorporar el apartado de ahorro y el control de gastos como parte de las funciones del prototipo.
-- Mostrar los movimientos recientes únicamente cuando el usuario seleccione esa opción, para mantener el panel principal más limpio.
-- Mantener la clasificación de gastos mediante reglas por palabras clave, sin presentarla como inteligencia artificial.
-- Continuar desarrollando el MVP como un prototipo académico y no como una aplicación bancaria lista para operar.
+- Use a web application built with React and TypeScript as the prototype for this sprint.
+- Keep identity verification in demonstration mode, without performing an actual KYC process.
+- Consider the first functional registration milestone complete.
+- Save the progress in commit `26c1903`, with the message "Primer avance: registro funcional de Kampus".
 
-## Entrada 5 — 16 de noviembre de 2026
+---
 
-**Objetivo de la sesión:** Mejorar la visualización de la información financiera y la experiencia de navegación del MVP de Kampus.
+## Entry 4 — November 11, 2026
 
-**Actividades realizadas:**
+**Objective:** Continue developing the Kampus MVP, expand the main digital account features, and verify that the project compiles correctly.
 
-- Se agregó una gráfica circular para visualizar los gastos del usuario por categoría, como comida, transporte, educación y entretenimiento.
-- Se incorporó una gráfica de líneas para mostrar la evolución de los ahorros a lo largo del tiempo.
-- Se ajustaron los cálculos de las gráficas para que reflejen los movimientos registrados en la aplicación.
-- Se eliminaron las etiquetas numéricas de los pasos del flujo para lograr una navegación más natural.
-- Se verificó la compilación del proyecto mediante `npm run build`, sin errores.
-- Se registraron los cambios en Git y se subieron correctamente a GitHub.
+**What the AI did:**
 
-**Decisiones del equipo:**
+- Helped implement simulated incoming transfers, updating the available balance and recording transactions.
+- Developed the demonstration-mode card payment functionality, including validation to ensure sufficient balance before processing a payment.
+- Added a savings section that allows users to move money between their available balance and savings.
+- Implemented a simulation of monthly savings returns using an illustrative annual rate of 5%.
+- Added automatic expense categorization using keyword-based rules, with categories such as food, transportation, education, entertainment, and others.
+- Added a monthly expense summary and the option to view or hide recent transactions.
+- Made visual adjustments to improve contrast, readability, and the presentation of the account summary.
 
-Se decidió mantener las gráficas dentro del MVP para facilitar que los usuarios comprendan sus hábitos de gasto y la evolución de sus ahorros. También se optó por eliminar la numeración de los pasos para que la experiencia se perciba más como una aplicación bancaria y menos como un formulario.
+**What the team decided:**
 
-**Resultado:** Se actualizaron las funcionalidades visuales del MVP. Los cambios quedaron guardados en GitHub mediante el commit `d94eea3`.
+- Keep transfers, payments, and returns as simulations, without connecting to real banking services.
+- Include the savings section and expense tracking as part of the prototype's functionality.
+- Display recent transactions only when the user selects that option, keeping the main dashboard cleaner.
+- Maintain keyword-based expense categorization without presenting it as artificial intelligence.
+- Continue developing the MVP as an academic prototype rather than a banking application ready for commercial operation.
+
+---
+
+## Entry 5 — November 16, 2026
+
+**Session objective:** Improve the visualization of financial information and the navigation experience of the Kampus MVP.
+
+**Activities performed:**
+
+- Added a pie chart to visualize the user's expenses by category, such as food, transportation, education, and entertainment.
+- Added a line chart to display the evolution of savings over time.
+- Adjusted the chart calculations so that they reflect the transactions recorded in the application.
+- Removed numerical labels from the steps in the user flow to create a more natural navigation experience.
+- Verified that the project compiled successfully using `npm run build`, with no errors.
+- Committed the changes to Git and successfully pushed them to GitHub.
+
+**Team decisions:**
+
+The team decided to keep the charts within the MVP to help users understand their spending habits and the evolution of their savings. The team also chose to remove the step numbering so that the experience would feel more like a banking application and less like a form.
+
+**Result:**
+
+The MVP's visual features were updated. The changes were saved to GitHub in commit `d94eea3`.
+
+---
+
+## Entry 6 — November 25, 2026
+
+**Objective:** Update and improve Kampus project documentation to reflect the current product vision, technical decisions, and Mexican regulatory considerations.
+
+**What the AI did:**
+
+- Revised the problem statement in `SPEC.md` to focus on the financial management challenges university students face when handling irregular or variable income, tracking expenses, and building savings habits.
+- Updated the value proposition to describe Kampus as a centralized platform for managing money, monitoring transactions, organizing savings, and potentially accessing financial services connected to university services.
+- Removed the previous problem-framing discussion and replaced it with the updated problem statement.
+- Added a Project Documents section to `SPEC.md`, referencing `AGENTS.md`, `README.md`, `DECISIONS.md`, and `BITACORA.md`.
+- Reviewed and improved the structure and formatting of `DECISIONS.md`, preserving the 12 existing Architecture Decision Records (ADRs), their statuses, consequences, and open decisions.
+- Reviewed the regulatory considerations documented in `SPEC.md`, including personal data protection, financial activities, potential banking or SOFIPO partnerships, SPEI, cards, KYC, AML/CTF, corporate structure, and intellectual property.
+- Discussed the relevance of the Mexican Fintech Law and the need to assess the regulatory treatment of Kampus according to its actual activities and financial flows.
+
+**What the team decided:**
+
+- Describe the problem around students' financial organization needs, particularly irregular income, expenses, and savings.
+- Keep the distinction between currently implemented MVP functionality and future financial services.
+- Maintain the existing technical and product decisions documented in `DECISIONS.md`, without presenting pending decisions or business hypotheses as implemented features.
+- Preserve the Mexican regulatory analysis as part of the project documentation and consider applicable legal requirements before moving toward real financial operations.
+- Keep the MVP scope focused on completing and documenting the existing functionality rather than introducing unnecessary features.
+
+**Result:**
+
+The project documentation was updated to better reflect Kampus' current product direction, technical architecture, and regulatory considerations. The changes improve consistency across `SPEC.md` and `DECISIONS.md` and provide clearer context for future development and AI-assisted work.
