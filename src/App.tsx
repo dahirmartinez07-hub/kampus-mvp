@@ -1335,7 +1335,10 @@ function App() {
                   <p>
                     {currentMonthPurchases.filter(
                       transaction => transaction.category === item.category
-                    ).length} compras
+                    ).length}{' '}
+                    {currentMonthPurchases.filter(
+                        transaction => transaction.category === item.category
+                    ).length === 1 ? 'compra' : 'compras'}
                   </p>
                   <div
                     style={{
