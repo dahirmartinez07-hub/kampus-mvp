@@ -68,7 +68,12 @@ function App() {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
-  const [kycApproved, setKycApproved] = useState(false)
+  const [identityDocument, setIdentityDocument] = useState<File | null>(null)
+  const [identitySelfie, setIdentitySelfie] = useState<File | null>(null)
+  const [otpRequired, setOtpRequired] = useState(false)
+  const [demoOtp, setDemoOtp] = useState('')
+  const [otpInput, setOtpInput] = useState('')
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null)
   const [adultConfirmed, setAdultConfirmed] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [privacyAccepted, setPrivacyAccepted] = useState(false)
@@ -202,8 +207,8 @@ function App() {
       setError('Debes aceptar los términos y condiciones y confirmar que leíste el aviso de privacidad.')
       return
     }
-    if (!kycApproved) {
-      setError('Completa la verificación de identidad simulada para continuar.')
+    if (!identityDocument || !identitySelfie) {
+      setError('Selecciona una imagen de ejemplo de tu identificación y una selfie de prueba para completar la verificación simulada.')
       return
     }
 
@@ -248,6 +253,9 @@ function App() {
         throw new Error('Tu usuario y cuenta se crearon, pero no pudimos guardar las aceptaciones. No vuelvas a registrarte; revisaremos la configuración de consentimientos.')
       }
 
+      setPassword('')
+      setIdentityDocument(null)
+      setIdentitySelfie(null)
       setScreen('registration-success')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pudimos completar tu registro.')
@@ -263,6 +271,10 @@ function App() {
       setError('Ingresa tu celular de 10 dígitos.')
       return
     }
+    if (!loginPassword) {
+      setError('Ingresa tu contraseña.')
+      return
+    }
 
     setError('')
     setLoading(true)
@@ -275,11 +287,52 @@ function App() {
       if (authError) throw new Error('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
       if (!data.user) throw new Error('No se pudo iniciar sesión.')
 
-      const account = await loadAccount(data.user.id)
-      setActiveAccount(account)
-      setScreen('dashboard')
+      // Segundo factor exclusivamente simulado: no se envía ningún SMS.
+      const randomBytes = new Uint32Array(1)
+      window.crypto.getRandomValues(randomBytes)
+      const generatedCode = String(randomBytes[0] % 1000000).padStart(6, '0')
+      setPendingUserId(data.user.id)
+      setDemoOtp(generatedCode)
+      setOtpInput('')
+      setOtpRequired(true)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No pudimos iniciar sesión.')
+      await supabase.auth.signOut()
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (loading) return
+    if (!/^\d{6}$/.test(otpInput) || otpInput !== demoOtp) {
+      setError('El código no coincide. Revisa el código de demostración e inténtalo de nuevo.')
+      return
+    }
+    if (!pendingUserId) {
+      setError('La sesión de verificación expiró. Inicia sesión nuevamente.')
+      setOtpRequired(false)
+      return
+    }
+
+    setLoading(true)
+    setError('')
+    try {
+      const account = await loadAccount(pendingUserId)
+      setActiveAccount(account)
+      setOtpRequired(false)
+      setDemoOtp('')
+      setOtpInput('')
+      setPendingUserId(null)
+      setLoginPassword('')
+      setScreen('dashboard')
+    } catch (err) {
+      await supabase.auth.signOut()
+      setError(err instanceof Error ? err.message : 'No pudimos verificar tu cuenta.')
+      setOtpRequired(false)
+      setDemoOtp('')
+      setPendingUserId(null)
     } finally {
       setLoading(false)
     }
@@ -433,8 +486,27 @@ function App() {
       await supabase.auth.signOut()
     } finally {
       setActiveAccount(null)
+      setName('')
+      setPhone('')
+      setPassword('')
+      setIdentityDocument(null)
+      setIdentitySelfie(null)
+      setAdultConfirmed(false)
+      setTermsAccepted(false)
+      setPrivacyAccepted(false)
       setLoginPhone('')
       setLoginPassword('')
+      setOtpRequired(false)
+      setDemoOtp('')
+      setOtpInput('')
+      setPendingUserId(null)
+      setReceiveAmount('')
+      setReceiveSender('')
+      setPurchaseAmount('')
+      setPurchaseMerchant('')
+      setSavingsAmount('')
+      setSavingsAction('deposit')
+      setShowTransactions(false)
       setError('')
       setScreen('login')
     }
@@ -588,6 +660,30 @@ function App() {
               Ingresa tus datos para consultar tu cuenta.
             </p>
 
+            {otpRequired ? (
+              <form onSubmit={handleVerifyOtp} noValidate>
+                <h2>Verificación adicional</h2>
+                <p className="subtitle">Ingresa el código de seis dígitos para continuar.</p>
+                <div className="verification" role="status">
+                  <strong>Código de demostración: {demoOtp}</strong>
+                  <p>Este código se muestra aquí porque no enviamos SMS reales.</p>
+                </div>
+                <label htmlFor="otpInput">Código de verificación</label>
+                <input
+                  id="otpInput"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  value={otpInput}
+                  onChange={e => { setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+                  disabled={loading}
+                />
+                {error && <p className="error" role="alert">{error}</p>}
+                <button type="submit" disabled={loading}>{loading ? 'Verificando...' : 'Verificar código →'}</button>
+                <button type="button" className="secondary-button" disabled={loading} onClick={handleLogout}>Cancelar</button>
+              </form>
+            ) : (
             <form onSubmit={handleLogin} noValidate>
               <label htmlFor="loginPhone">Número de celular</label>
               <div className="phone-input">
@@ -628,9 +724,10 @@ function App() {
                 {loading ? 'Ingresando...' : 'Iniciar sesión →'}
               </button>
             </form>
+            )}
 
-            <p className="security">¿Todavía no tienes cuenta?</p>
-            <button
+            {!otpRequired && <p className="security">¿Todavía no tienes cuenta?</p>}
+            {!otpRequired && <button
               className="secondary-button"
               onClick={() => {
                 setError('')
@@ -638,7 +735,7 @@ function App() {
               }}
             >
               Crear una cuenta Kampus
-            </button>
+            </button>}
           </>
         )}
 
@@ -699,23 +796,28 @@ function App() {
                 disabled={loading}
               />
 
-              <div className="verification">
-                <div>
-                  <strong>Verificación de identidad</strong>
-                  <p>Simulación de validación KYC</p>
-                </div>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={kycApproved}
-                    onChange={e => {
-                      setKycApproved(e.target.checked)
-                      setError('')
-                    }}
-                    disabled={loading}
-                  />
-                  <span className="slider"></span>
-                </label>
+              <div className="verification" style={{ display: 'block', textAlign: 'left' }}>
+                <strong>Verificación de identidad</strong>
+                <p>Sube imágenes de ejemplo para simular la revisión de identidad.</p>
+                <label htmlFor="identityDocument">Identificación de prueba (INE o credencial escolar)</label>
+                <input
+                  id="identityDocument"
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setIdentityDocument(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+                {identityDocument && <p className="security">Archivo seleccionado: {identityDocument.name}</p>}
+                <label htmlFor="identitySelfie">Selfie de prueba</label>
+                <input
+                  id="identitySelfie"
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setIdentitySelfie(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+                {identitySelfie && <p className="security">Archivo seleccionado: {identitySelfie.name}</p>}
+                <p className="security">Usa únicamente imágenes ficticias. Los archivos solo se seleccionan en este navegador; no se suben ni se guardan en Kampus.</p>
               </div>
 
               <div style={{ display: 'grid', gap: '12px', margin: '18px 0', textAlign: 'left' }}>
@@ -887,6 +989,7 @@ function App() {
               </div>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handleReceiveMoney} noValidate>
               <label htmlFor="receiveAmount">Monto a recibir (MXN)</label>
               <input
@@ -916,8 +1019,8 @@ function App() {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                Confirmar transferencia de prueba →
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Confirmar transferencia de prueba →'}
               </button>
             </form>
 
@@ -987,6 +1090,7 @@ function App() {
               </div>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handlePayment} noValidate>
               <label htmlFor="purchaseMerchant">Nombre del comercio</label>
               <input
@@ -1016,8 +1120,8 @@ function App() {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                Confirmar pago de prueba →
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Confirmar pago de prueba →'}
               </button>
             </form>
 
@@ -1106,6 +1210,7 @@ function App() {
               </button>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handleSavingsMovement} noValidate>
               <label htmlFor="savingsAmount">
                 {savingsAction === 'deposit'
@@ -1128,8 +1233,8 @@ function App() {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                {savingsAction === 'deposit'
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : savingsAction === 'deposit'
                   ? 'Apartar dinero en ahorro →'
                   : 'Retirar dinero de ahorro →'}
               </button>
@@ -1165,6 +1270,9 @@ function App() {
             <p className="subtitle">
               Este es el resumen de tu cuenta.
             </p>
+            <p className="security">
+              Plan gratuito de demostración. El plan Premium de $49 MXN al mes es una proyección del modelo financiero; no está habilitado ni se cobra en esta versión.
+            </p>
 
             <div className="verification">
               <div>
@@ -1195,7 +1303,7 @@ function App() {
               <div>
                 <strong>Dinero en ahorro</strong>
                 <h2>{formatMoney(currentSavings)}</h2>
-                <p>Rendimiento del 5% anual.</p>
+                <p>5% anual hipotético para esta demostración; no es una tasa ofrecida.</p>
               </div>
             </div>
 
