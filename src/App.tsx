@@ -1,5 +1,6 @@
 
 import { useState, type FormEvent } from 'react'
+import { supabase } from './lib/supabase'
 import './App.css'
 
 type Screen =
@@ -21,56 +22,61 @@ type ExpenseCategory =
   | 'Otros'
 
 type Transaction = {
-  id: number
+  id: string
   date: string
   description: string
   amountCents: number
   category?: ExpenseCategory
-  type:
-    | 'transfer-in'
-    | 'purchase'
-    | 'savings-deposit'
-    | 'savings-withdrawal'
-    | 'savings-interest'
+  type: 'transfer-in' | 'purchase' | 'savings-deposit' | 'savings-withdrawal'
 }
 
 type SavedAccount = {
+  id: string
   name: string
   phone: string
-  password: string
   clabe: string
   balanceCents: number
-  savingsCents?: number
+  savingsCents: number
   opened: boolean
-  transactions?: Transaction[]
+  transactions: Transaction[]
 }
 
-const STORAGE_KEY = 'kampus_demo_accounts'
+type AccountRow = {
+  id: string
+  clabe: string
+  balance_cents: number | string
+  savings_cents: number | string
+}
+
+type TransactionRow = {
+  id: string
+  created_at: string
+  description: string
+  amount_cents: number | string
+  type: Transaction['type']
+  category: ExpenseCategory | null
+}
+
 const ANNUAL_RATE = 0.05
-
-function getAccounts(): SavedAccount[] {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    return saved ? JSON.parse(saved) as SavedAccount[] : []
-  } catch {
-    return []
-  }
-}
-
-function saveAccounts(accounts: SavedAccount[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts))
-}
+const TERMS_VERSION = 'KAMPUS-DEMO-1.0'
+const PRIVACY_VERSION = 'KAMPUS-PRIVACY-DEMO-1.0'
 
 function App() {
-  const [accounts, setAccounts] = useState<SavedAccount[]>(getAccounts)
-
   const [screen, setScreen] = useState<Screen>('login')
   const [activeAccount, setActiveAccount] = useState<SavedAccount | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
-  const [kycApproved, setKycApproved] = useState(false)
+  const [identityDocument, setIdentityDocument] = useState<File | null>(null)
+  const [identitySelfie, setIdentitySelfie] = useState<File | null>(null)
+  const [otpRequired, setOtpRequired] = useState(false)
+  const [demoOtp, setDemoOtp] = useState('')
+  const [otpInput, setOtpInput] = useState('')
+  const [pendingUserId, setPendingUserId] = useState<string | null>(null)
+  const [adultConfirmed, setAdultConfirmed] = useState(false)
+  const [termsAccepted, setTermsAccepted] = useState(false)
+  const [privacyAccepted, setPrivacyAccepted] = useState(false)
 
   const [loginPhone, setLoginPhone] = useState('')
   const [loginPassword, setLoginPassword] = useState('')
@@ -93,16 +99,6 @@ function App() {
       style: 'currency',
       currency: 'MXN',
     }).format(cents / 100)
-
-  const updateAccount = (updatedAccount: SavedAccount) => {
-    const updatedAccounts = accounts.map(account =>
-      account.phone === updatedAccount.phone ? updatedAccount : account
-    )
-
-    saveAccounts(updatedAccounts)
-    setAccounts(updatedAccounts)
-    setActiveAccount(updatedAccount)
-  }
 
   const categorizeExpense = (merchant: string): ExpenseCategory => {
     const name = merchant.toLowerCase()
@@ -135,20 +131,6 @@ function App() {
     return 'Otros'
   }
 
-  const createTransaction = (
-    description: string,
-    amountCents: number,
-    type: Transaction['type'],
-    category?: ExpenseCategory
-  ): Transaction => ({
-    id: Date.now(),
-    date: new Date().toISOString(),
-    description,
-    amountCents,
-    type,
-    ...(category ? { category } : {}),
-  })
-
   const parseAmount = (value: string): number | null => {
     if (!/^\d+(\.\d{1,2})?$/.test(value.trim())) return null
 
@@ -159,318 +141,381 @@ function App() {
     return cents
   }
 
-  const handleRegister = (e: FormEvent<HTMLFormElement>) => {
+  const loadAccount = async (userId: string): Promise<SavedAccount> => {
+    const [
+      { data: profile, error: profileError },
+      { data: account, error: accountError },
+      { data: rows, error: transactionsError },
+    ] = await Promise.all([
+      supabase.from('profiles').select('full_name, phone').eq('id', userId).single(),
+      supabase.from('kampus_accounts').select('id, clabe, balance_cents, savings_cents').eq('user_id', userId).single(),
+      supabase.from('transactions').select('id, created_at, description, amount_cents, type, category').eq('user_id', userId).order('created_at', { ascending: false }),
+    ])
+
+    if (profileError) throw profileError
+    if (accountError) throw accountError
+    if (transactionsError) throw transactionsError
+    if (!profile || !account) throw new Error('No encontramos la cuenta de Kampus.')
+
+    const accountRow = account as AccountRow
+    const transactionRows = (rows || []) as TransactionRow[]
+
+    return {
+      id: accountRow.id,
+      name: profile.full_name,
+      phone: profile.phone,
+      clabe: accountRow.clabe,
+      balanceCents: Number(accountRow.balance_cents),
+      savingsCents: Number(accountRow.savings_cents),
+      opened: true,
+      transactions: transactionRows.map(transaction => ({
+        id: transaction.id,
+        date: transaction.created_at,
+        description: transaction.description,
+        amountCents: Number(transaction.amount_cents),
+        type: transaction.type,
+        ...(transaction.category ? { category: transaction.category } : {}),
+      })),
+    }
+  }
+
+  const handleRegister = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (loading) return
 
-    const nameParts = name.trim().split(/\s+/)
+    const normalizedName = name.trim().replace(/\s+/g, ' ')
+    const nameParts = normalizedName.split(' ')
+    const validName = /^[\p{L}][\p{L} .'-]*$/u.test(normalizedName)
 
-    if (nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
-      setError('Ingresa tu nombre y al menos un apellido.')
+    if (!validName || nameParts.length < 2 || nameParts.some(part => part.length < 2)) {
+      setError('Ingresa tu nombre y al menos un apellido, sin números ni caracteres inválidos.')
       return
     }
-
     if (!/^\d{10}$/.test(phone)) {
       setError('Ingresa un celular válido de 10 dígitos.')
       return
     }
-
-    if (password.length < 6) {
-      setError('Tu contraseña debe tener al menos 6 caracteres.')
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
+      setError('La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.')
       return
     }
-
-    if (accounts.some(account => account.phone === phone)) {
-      setError('Este celular ya tiene una cuenta. Inicia sesión.')
+    if (!adultConfirmed) {
+      setError('Debes confirmar que tienes 18 años o más para continuar.')
       return
     }
-
-    if (!kycApproved) {
-      setError('Activa la verificación simulada para continuar.')
+    if (!termsAccepted || !privacyAccepted) {
+      setError('Debes aceptar los términos y condiciones y confirmar que leíste el aviso de privacidad.')
+      return
+    }
+    if (!identityDocument || !identitySelfie) {
+      setError('Selecciona una imagen de ejemplo de tu identificación y una selfie de prueba para completar la verificación simulada.')
       return
     }
 
     setError('')
     setLoading(true)
+    try {
+      const internalEmail = `52${phone}@kampus-demo.invalid`
+      const { data, error: authError } = await supabase.auth.signUp({
+        email: internalEmail,
+        password,
+        options: { data: { full_name: normalizedName, phone } },
+      })
+      if (authError) {
+        if (authError.message.toLowerCase().includes('already registered') ||
+            authError.message.toLowerCase().includes('already exists')) {
+          throw new Error('Este número ya está registrado. Inicia sesión con tu cuenta.')
+        }
+        throw authError
+      }
+      if (!data.user) throw new Error('No se pudo crear el usuario de demostración.')
 
-    window.setTimeout(() => {
-      setLoading(false)
+      if (!data.session) {
+        const { data: signInData, error: signInError } =
+          await supabase.auth.signInWithPassword({ email: internalEmail, password })
+        if (signInError || !signInData.user) {
+          throw new Error('El usuario se creó, pero no se pudo iniciar sesión. Revisa la configuración de confirmación de correo en Supabase.')
+        }
+      }
+
+      const { error: accountError } = await supabase.rpc('create_kampus_account', {
+        p_full_name: normalizedName,
+        p_phone: phone,
+      })
+      if (accountError) throw accountError
+
+      const { error: consentError } = await supabase.rpc('record_kampus_consents', {
+        p_terms_version: TERMS_VERSION,
+        p_privacy_version: PRIVACY_VERSION,
+        p_adult_confirmed: true,
+      })
+      if (consentError) {
+        throw new Error('Tu usuario y cuenta se crearon, pero no pudimos guardar las aceptaciones. No vuelvas a registrarte; revisaremos la configuración de consentimientos.')
+      }
+
+      setPassword('')
+      setIdentityDocument(null)
+      setIdentitySelfie(null)
       setScreen('registration-success')
-    }, 700)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos completar tu registro.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleLogin = (e: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     if (loading) return
-
     if (!/^\d{10}$/.test(loginPhone)) {
       setError('Ingresa tu celular de 10 dígitos.')
       return
     }
-
-    const account = accounts.find(
-      item =>
-        item.phone === loginPhone &&
-        item.password === loginPassword &&
-        item.opened
-    )
-
-    if (!account) {
-      setError('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
+    if (!loginPassword) {
+      setError('Ingresa tu contraseña.')
       return
     }
 
     setError('')
     setLoading(true)
+    try {
+      const email = `52${loginPhone}@kampus-demo.invalid`
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password: loginPassword,
+      })
+      if (authError) throw new Error('No encontramos una cuenta con esos datos. Revisa tu celular y contraseña.')
+      if (!data.user) throw new Error('No se pudo iniciar sesión.')
 
-    window.setTimeout(() => {
-      setActiveAccount(account)
+      // Segundo factor exclusivamente simulado: no se envía ningún SMS.
+      const randomBytes = new Uint32Array(1)
+      window.crypto.getRandomValues(randomBytes)
+      const generatedCode = String(randomBytes[0] % 1000000).padStart(6, '0')
+      setPendingUserId(data.user.id)
+      setDemoOtp(generatedCode)
+      setOtpInput('')
+      setOtpRequired(true)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos iniciar sesión.')
+      await supabase.auth.signOut()
+    } finally {
       setLoading(false)
-      setScreen('dashboard')
-    }, 500)
+    }
   }
 
-  const handleOpenAccount = () => {
+  const handleVerifyOtp = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
     if (loading) return
+    if (!/^\d{6}$/.test(otpInput) || otpInput !== demoOtp) {
+      setError('El código no coincide. Revisa el código de demostración e inténtalo de nuevo.')
+      return
+    }
+    if (!pendingUserId) {
+      setError('La sesión de verificación expiró. Inicia sesión nuevamente.')
+      setOtpRequired(false)
+      return
+    }
 
     setLoading(true)
-
-    window.setTimeout(() => {
-      const newAccount: SavedAccount = {
-        name: name.trim(),
-        phone,
-        password,
-        clabe: '000000000000000000',
-        balanceCents: 0,
-        savingsCents: 0,
-        opened: true,
-        transactions: [],
-      }
-
-      const updatedAccounts = [...accounts, newAccount]
-
-      saveAccounts(updatedAccounts)
-      setAccounts(updatedAccounts)
-      setActiveAccount(newAccount)
+    setError('')
+    try {
+      const account = await loadAccount(pendingUserId)
+      setActiveAccount(account)
+      setOtpRequired(false)
+      setDemoOtp('')
+      setOtpInput('')
+      setPendingUserId(null)
+      setLoginPassword('')
+      setScreen('dashboard')
+    } catch (err) {
+      await supabase.auth.signOut()
+      setError(err instanceof Error ? err.message : 'No pudimos verificar tu cuenta.')
+      setOtpRequired(false)
+      setDemoOtp('')
+      setPendingUserId(null)
+    } finally {
       setLoading(false)
-      setScreen('account-opened')
-    }, 1000)
+    }
   }
 
-  const handleReceiveMoney = (e: FormEvent<HTMLFormElement>) => {
+  const handleOpenAccount = async () => {
+    if (loading) return
+    setError('')
+    setLoading(true)
+    try {
+      const { data, error: userError } = await supabase.auth.getUser()
+      if (userError || !data.user) throw new Error('Tu sesión expiró. Inicia sesión nuevamente.')
+      const account = await loadAccount(data.user.id)
+      setActiveAccount(account)
+      setScreen('account-opened')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No pudimos mostrar tu cuenta.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const applyTransaction = async (
+    description: string,
+    amountCents: number,
+    type: Transaction['type'],
+    category: ExpenseCategory | null = null
+  ) => {
+    const { data, error: rpcError } = await supabase.rpc('register_kampus_transaction', {
+      p_description: description,
+      p_amount_cents: amountCents,
+      p_type: type,
+      p_category: category,
+    })
+    if (rpcError) throw rpcError
+
+    const result = data as { account: AccountRow; transaction: TransactionRow }
+    if (!result?.account || !result?.transaction) {
+      throw new Error('No recibimos la confirmación del movimiento.')
+    }
+
+    const updatedAccount: SavedAccount = {
+      ...(activeAccount as SavedAccount),
+      id: result.account.id,
+      clabe: result.account.clabe,
+      balanceCents: Number(result.account.balance_cents),
+      savingsCents: Number(result.account.savings_cents),
+      transactions: [{
+        id: result.transaction.id,
+        date: result.transaction.created_at,
+        description: result.transaction.description,
+        amountCents: Number(result.transaction.amount_cents),
+        type: result.transaction.type,
+        ...(result.transaction.category ? { category: result.transaction.category } : {}),
+      }, ...(activeAccount?.transactions || [])],
+    }
+    setActiveAccount(updatedAccount)
+  }
+
+  const handleReceiveMoney = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(receiveAmount)
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
-    const transaction = createTransaction(
-      receiveSender.trim() || 'Transferencia recibida',
-      amountCents,
-      'transfer-in'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: activeAccount.balanceCents + amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setReceiveAmount('')
-    setReceiveSender('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      await applyTransaction(receiveSender.trim() || 'Transferencia recibida', amountCents, 'transfer-in')
+      setReceiveAmount('')
+      setReceiveSender('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar la transferencia simulada.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handlePayment = (e: FormEvent<HTMLFormElement>) => {
+  const handlePayment = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(purchaseAmount)
-
     if (!purchaseMerchant.trim()) {
       setError('Ingresa el nombre del comercio.')
       return
     }
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
     if (amountCents > activeAccount.balanceCents) {
       setError('Pago rechazado: no tienes saldo suficiente.')
       return
     }
 
-    const category = categorizeExpense(purchaseMerchant)
-
-    const transaction = createTransaction(
-      `Compra en ${purchaseMerchant.trim()}`,
-      amountCents,
-      'purchase',
-      category
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: activeAccount.balanceCents - amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setPurchaseAmount('')
-    setPurchaseMerchant('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      await applyTransaction(`Compra en ${purchaseMerchant.trim()}`, amountCents, 'purchase', categorizeExpense(purchaseMerchant))
+      setPurchaseAmount('')
+      setPurchaseMerchant('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el pago simulado.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleSavingsMovement = (e: FormEvent<HTMLFormElement>) => {
+  const handleSavingsMovement = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!activeAccount) return
-
+    if (!activeAccount || loading) return
     const amountCents = parseAmount(savingsAmount)
-
     if (amountCents === null) {
       setError('Ingresa un monto válido con máximo dos decimales.')
       return
     }
-
-    const currentSavings = activeAccount.savingsCents || 0
-
+    const currentSavings = activeAccount.savingsCents
     if (savingsAction === 'deposit' && amountCents > activeAccount.balanceCents) {
       setError('No tienes suficiente saldo disponible para ahorrar.')
       return
     }
-
     if (savingsAction === 'withdraw' && amountCents > currentSavings) {
       setError('No tienes suficiente dinero en tu apartado de ahorro.')
       return
     }
 
-    const isDeposit = savingsAction === 'deposit'
-
-    const transaction = createTransaction(
-      isDeposit ? 'Dinero apartado en ahorro' : 'Retiro de ahorro',
-      amountCents,
-      isDeposit ? 'savings-deposit' : 'savings-withdrawal'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      balanceCents: isDeposit
-        ? activeAccount.balanceCents - amountCents
-        : activeAccount.balanceCents + amountCents,
-      savingsCents: isDeposit
-        ? currentSavings + amountCents
-        : currentSavings - amountCents,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setSavingsAmount('')
+    setLoading(true)
     setError('')
-    setScreen('dashboard')
+    try {
+      const isDeposit = savingsAction === 'deposit'
+      await applyTransaction(
+        isDeposit ? 'Dinero apartado en ahorro' : 'Retiro de ahorro',
+        amountCents,
+        isDeposit ? 'savings-deposit' : 'savings-withdrawal'
+      )
+      setSavingsAmount('')
+      setScreen('dashboard')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo registrar el movimiento de ahorro.')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const handleSimulateInterest = () => {
-    if (!activeAccount) return
-    const now = new Date()
-
-const alreadyCreditedThisMonth = (
-  activeAccount.transactions || []
-).some(transaction => {
-  if (transaction.type !== 'savings-interest') return false
-
-  const transactionDate = new Date(transaction.date)
-
-  return (
-    transactionDate.getMonth() === now.getMonth() &&
-    transactionDate.getFullYear() === now.getFullYear()
-  )
-})
-
-if (alreadyCreditedThisMonth) {
-  setError('El rendimiento simulado de este mes ya fue registrado.')
-  return
-}
-    const currentSavings = activeAccount.savingsCents || 0
-
-    if (currentSavings <= 0) {
-      setError('Primero necesitas tener dinero en tu apartado de ahorro.')
-      return
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut()
+    } finally {
+      setActiveAccount(null)
+      setName('')
+      setPhone('')
+      setPassword('')
+      setIdentityDocument(null)
+      setIdentitySelfie(null)
+      setAdultConfirmed(false)
+      setTermsAccepted(false)
+      setPrivacyAccepted(false)
+      setLoginPhone('')
+      setLoginPassword('')
+      setOtpRequired(false)
+      setDemoOtp('')
+      setOtpInput('')
+      setPendingUserId(null)
+      setReceiveAmount('')
+      setReceiveSender('')
+      setPurchaseAmount('')
+      setPurchaseMerchant('')
+      setSavingsAmount('')
+      setSavingsAction('deposit')
+      setShowTransactions(false)
+      setError('')
+      setScreen('login')
     }
-
-    const monthlyInterest = Math.round(
-      currentSavings * ANNUAL_RATE / 12
-    )
-
-    if (monthlyInterest <= 0) {
-      setError('El rendimiento simulado es menor a un centavo.')
-      return
-    }
-
-    const transaction = createTransaction(
-      'Rendimiento simulado de un mes',
-      monthlyInterest,
-      'savings-interest'
-    )
-
-    const updatedAccount: SavedAccount = {
-      ...activeAccount,
-      savingsCents: currentSavings + monthlyInterest,
-      transactions: [
-        transaction,
-        ...(activeAccount.transactions || []),
-      ],
-    }
-
-    updateAccount(updatedAccount)
-    setError('')
   }
-
-  const handleLogout = () => {
-  setActiveAccount(null)
-
-  // Limpiar datos de registro
-  setName('')
-  setPhone('')
-  setPassword('')
-  setKycApproved(false)
-
-  // Limpiar datos de inicio de sesión
-  setLoginPhone('')
-  setLoginPassword('')
-
-  // Limpiar formularios de operaciones
-  setReceiveAmount('')
-  setReceiveSender('')
-  setPurchaseAmount('')
-  setPurchaseMerchant('')
-  setSavingsAmount('')
-  setSavingsAction('deposit')
-
-  // Limpiar estados de la aplicación
-  setShowTransactions(false)
-  setError('')
-  setScreen('login')
-}
 
   const currentSavings = activeAccount?.savingsCents || 0
+  const estimatedMonthlyInterest = Math.round(
+  currentSavings * ANNUAL_RATE / 12
+)
 
   const currentMonthPurchases = (activeAccount?.transactions || []).filter(transaction => {
     const transactionDate = new Date(transaction.date)
@@ -511,8 +556,7 @@ if (alreadyCreditedThisMonth) {
   const savingsTransactions = (activeAccount?.transactions || []).filter(
     transaction =>
       transaction.type === 'savings-deposit' ||
-      transaction.type === 'savings-withdrawal' ||
-      transaction.type === 'savings-interest'
+      transaction.type === 'savings-withdrawal'
   )
 
   const netSavingsMovements = savingsTransactions.reduce(
@@ -616,6 +660,30 @@ if (alreadyCreditedThisMonth) {
               Ingresa tus datos para consultar tu cuenta.
             </p>
 
+            {otpRequired ? (
+              <form onSubmit={handleVerifyOtp} noValidate>
+                <h2>Verificación adicional</h2>
+                <p className="subtitle">Ingresa el código de seis dígitos para continuar.</p>
+                <div className="verification" role="status">
+                  <strong>Código de demostración: {demoOtp}</strong>
+                  <p>Este código se muestra aquí porque no enviamos SMS reales.</p>
+                </div>
+                <label htmlFor="otpInput">Código de verificación</label>
+                <input
+                  id="otpInput"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  autoComplete="one-time-code"
+                  value={otpInput}
+                  onChange={e => { setOtpInput(e.target.value.replace(/\D/g, '').slice(0, 6)); setError('') }}
+                  disabled={loading}
+                />
+                {error && <p className="error" role="alert">{error}</p>}
+                <button type="submit" disabled={loading}>{loading ? 'Verificando...' : 'Verificar código →'}</button>
+                <button type="button" className="secondary-button" disabled={loading} onClick={handleLogout}>Cancelar</button>
+              </form>
+            ) : (
             <form onSubmit={handleLogin} noValidate>
               <label htmlFor="loginPhone">Número de celular</label>
               <div className="phone-input">
@@ -626,6 +694,7 @@ if (alreadyCreditedThisMonth) {
                   placeholder="10 dígitos"
                   maxLength={10}
                   inputMode="numeric"
+                  autoComplete="off"
                   value={loginPhone}
                   onChange={e => {
                     setLoginPhone(e.target.value.replace(/\D/g, ''))
@@ -640,6 +709,7 @@ if (alreadyCreditedThisMonth) {
                 id="loginPassword"
                 type="password"
                 placeholder="Tu contraseña"
+                autoComplete="current-password"
                 value={loginPassword}
                 onChange={e => {
                   setLoginPassword(e.target.value)
@@ -654,9 +724,10 @@ if (alreadyCreditedThisMonth) {
                 {loading ? 'Ingresando...' : 'Iniciar sesión →'}
               </button>
             </form>
+            )}
 
-            <p className="security">¿Todavía no tienes cuenta?</p>
-            <button
+            {!otpRequired && <p className="security">¿Todavía no tienes cuenta?</p>}
+            {!otpRequired && <button
               className="secondary-button"
               onClick={() => {
                 setError('')
@@ -664,7 +735,7 @@ if (alreadyCreditedThisMonth) {
               }}
             >
               Crear una cuenta Kampus
-            </button>
+            </button>}
           </>
         )}
 
@@ -701,9 +772,10 @@ if (alreadyCreditedThisMonth) {
                   placeholder="10 dígitos"
                   maxLength={10}
                   inputMode="numeric"
+                  autoComplete="tel-national"
                   value={phone}
                   onChange={e => {
-                    setPhone(e.target.value.replace(/\D/g, ''))
+                    setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))
                     setError('')
                   }}
                   disabled={loading}
@@ -714,7 +786,8 @@ if (alreadyCreditedThisMonth) {
               <input
                 id="password"
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder="8 caracteres, mayúscula, minúscula y número"
+                autoComplete="new-password"
                 value={password}
                 onChange={e => {
                   setPassword(e.target.value)
@@ -723,22 +796,85 @@ if (alreadyCreditedThisMonth) {
                 disabled={loading}
               />
 
-              <div className="verification">
-                <div>
-                  <strong>Verificación de identidad</strong>
-                  <p>Simulación de validación KYC</p>
-                </div>
-                <label className="switch">
+              <div className="verification" style={{ display: 'block', textAlign: 'left' }}>
+                <strong>Verificación de identidad</strong>
+                <p>Sube imágenes de ejemplo para simular la revisión de identidad.</p>
+                <label htmlFor="identityDocument">Identificación de prueba (INE o credencial escolar)</label>
+                <input
+                  id="identityDocument"
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setIdentityDocument(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+                {identityDocument && <p className="security">Archivo seleccionado: {identityDocument.name}</p>}
+                <label htmlFor="identitySelfie">Selfie de prueba</label>
+                <input
+                  id="identitySelfie"
+                  type="file"
+                  accept="image/*"
+                  onChange={e => setIdentitySelfie(e.target.files?.[0] || null)}
+                  disabled={loading}
+                />
+                {identitySelfie && <p className="security">Archivo seleccionado: {identitySelfie.name}</p>}
+                <p className="security">Usa únicamente imágenes ficticias. Los archivos solo se seleccionan en este navegador; no se suben ni se guardan en Kampus.</p>
+              </div>
+
+              <div style={{ display: 'grid', gap: '12px', margin: '18px 0', textAlign: 'left' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
                   <input
                     type="checkbox"
-                    checked={kycApproved}
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={adultConfirmed}
                     onChange={e => {
-                      setKycApproved(e.target.checked)
+                      setAdultConfirmed(e.target.checked)
                       setError('')
                     }}
                     disabled={loading}
                   />
-                  <span className="slider"></span>
+                  <span>Declaro que tengo 18 años o más.</span>
+                </label>
+
+                <details style={{ background: '#F5F7FB', borderRadius: '10px', padding: '12px 14px', fontSize: '13px', lineHeight: 1.55, color: '#526176' }}>
+                  <summary style={{ cursor: 'pointer', color: '#1D4E8F', fontWeight: 600 }}>Leer términos y condiciones de la demostración</summary>
+                  <p><strong>Versión {TERMS_VERSION}</strong></p>
+                  <p>Kampus es un prototipo académico. La cuenta, la CLABE, la tarjeta, los saldos, los depósitos, los pagos y los rendimientos son ficticios. Esta plataforma no es una institución financiera, no custodia fondos y no procesa transferencias ni pagos reales.</p>
+                  <p>El usuario se compromete a utilizar datos ficticios durante las pruebas, mantener la confidencialidad de su contraseña y no intentar utilizar el prototipo para operaciones reales. Las funciones pueden cambiar o dejar de estar disponibles durante el desarrollo.</p>
+                </details>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={termsAccepted}
+                    onChange={e => {
+                      setTermsAccepted(e.target.checked)
+                      setError('')
+                    }}
+                    disabled={loading}
+                  />
+                  <span>He leído y acepto los términos y condiciones.</span>
+                </label>
+
+                <details style={{ background: '#F5F7FB', borderRadius: '10px', padding: '12px 14px', fontSize: '13px', lineHeight: 1.55, color: '#526176' }}>
+                  <summary style={{ cursor: 'pointer', color: '#1D4E8F', fontWeight: 600 }}>Leer aviso de privacidad de la demostración</summary>
+                  <p><strong>Versión {PRIVACY_VERSION}</strong></p>
+                  <p>Para este prototipo se utilizan datos de prueba como nombre, teléfono ficticio, identificador de usuario y registros de movimientos simulados. La información se almacena en la base de datos de demostración de Kampus para permitir el funcionamiento de la cuenta y las pruebas del proyecto.</p>
+                  <p>No ingreses información personal real, documentos oficiales, datos bancarios reales ni contraseñas que utilices en otros servicios. Los datos de prueba podrán eliminarse como parte del mantenimiento del prototipo.</p>
+                </details>
+
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', fontSize: '14px', lineHeight: 1.5, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    style={{ width: '16px', height: '16px', marginTop: '3px', flexShrink: 0 }}
+                    checked={privacyAccepted}
+                    onChange={e => {
+                      setPrivacyAccepted(e.target.checked)
+                      setError('')
+                    }}
+                    disabled={loading}
+                  />
+                  <span>Confirmo que leí el aviso de privacidad.</span>
                 </label>
               </div>
 
@@ -755,6 +891,7 @@ if (alreadyCreditedThisMonth) {
                 setError('')
                 setScreen('login')
               }}
+              disabled={loading}
             >
               Ya tengo una cuenta
             </button>
@@ -793,6 +930,8 @@ if (alreadyCreditedThisMonth) {
               </div>
               <span>DEMO</span>
             </div>
+
+            {error && <p className="error-message" role="alert">{error}</p>}
 
             <button onClick={handleOpenAccount} disabled={loading}>
               {loading ? 'Abriendo cuenta...' : 'Abrir cuenta de demostración →'}
@@ -850,6 +989,7 @@ if (alreadyCreditedThisMonth) {
               </div>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handleReceiveMoney} noValidate>
               <label htmlFor="receiveAmount">Monto a recibir (MXN)</label>
               <input
@@ -879,8 +1019,8 @@ if (alreadyCreditedThisMonth) {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                Confirmar transferencia de prueba →
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Confirmar transferencia de prueba →'}
               </button>
             </form>
 
@@ -950,6 +1090,7 @@ if (alreadyCreditedThisMonth) {
               </div>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handlePayment} noValidate>
               <label htmlFor="purchaseMerchant">Nombre del comercio</label>
               <input
@@ -979,8 +1120,8 @@ if (alreadyCreditedThisMonth) {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                Confirmar pago de prueba →
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : 'Confirmar pago de prueba →'}
               </button>
             </form>
 
@@ -1005,7 +1146,7 @@ if (alreadyCreditedThisMonth) {
             <p className="eyebrow">AHORRO</p>
             <h1>Haz crecer tu ahorro.</h1>
             <p className="subtitle">
-              Separa dinero y consulta tu rendimiento simulado.
+              Separa dinero y consulta tu rendimiento estimado.
             </p>
 
             <div className="verification">
@@ -1069,6 +1210,7 @@ if (alreadyCreditedThisMonth) {
               </button>
             </div>
 
+            <div className="security">Comisión de esta operación en la demostración: $0.00 MXN.</div>
             <form onSubmit={handleSavingsMovement} noValidate>
               <label htmlFor="savingsAmount">
                 {savingsAction === 'deposit'
@@ -1091,31 +1233,19 @@ if (alreadyCreditedThisMonth) {
 
               {error && <p className="error" role="alert">{error}</p>}
 
-              <button type="submit">
-                {savingsAction === 'deposit'
+              <button type="submit" disabled={loading}>
+                {loading ? 'Procesando...' : savingsAction === 'deposit'
                   ? 'Apartar dinero en ahorro →'
                   : 'Retirar dinero de ahorro →'}
               </button>
             </form>
-
             <div className="verification">
-              <div>
-                <strong>Simulación de rendimiento</strong>
-                <p>
-                  Calcula un mes de rendimiento sobre tu ahorro actual.
-                </p>
-                <p>
-                  El cálculo utiliza la tasa anual ilustrativa del 5% dividida entre 12.
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleSimulateInterest}
-              disabled={currentSavings <= 0}
-            >
-              Simular rendimiento de un mes
-            </button>
+  <div>
+    <strong>Rendimiento mensual estimado</strong>
+    <h2>{formatMoney(estimatedMonthlyInterest)}</h2>
+    <p>Estimación ilustrativa si mantienes el saldo actual durante un mes.</p>
+  </div>
+</div>
 
             <p className="security">
               Rendimiento ficticio. No representa una tasa ofrecida ni garantizada.
@@ -1140,6 +1270,9 @@ if (alreadyCreditedThisMonth) {
             <p className="subtitle">
               Este es el resumen de tu cuenta.
             </p>
+            <p className="security">
+              Plan gratuito de demostración. El plan Premium de $49 MXN al mes es una proyección del modelo financiero; no está habilitado ni se cobra en esta versión.
+            </p>
 
             <div className="verification">
               <div>
@@ -1148,12 +1281,29 @@ if (alreadyCreditedThisMonth) {
                 <p>Pesos mexicanos · Saldo de demostración</p>
               </div>
             </div>
+                        <div className="dashboard-actions">
+              <button onClick={() => setScreen('receive-money')}>
+                + Recibir dinero
+              </button>
+
+              <button onClick={() => setScreen('make-payment')}>
+                Pagar con tarjeta →
+              </button>
+
+              <button onClick={() => {
+                setSavingsAction('deposit')
+                setError('')
+                setScreen('savings')
+              }}>
+                Mi ahorro →
+              </button>
+            </div>
 
             <div className="verification">
               <div>
                 <strong>Dinero en ahorro</strong>
                 <h2>{formatMoney(currentSavings)}</h2>
-                <p>Rendimiento ilustrativo del 5% anual.</p>
+                <p>5% anual hipotético para esta demostración; no es una tasa ofrecida.</p>
               </div>
             </div>
 
@@ -1320,8 +1470,7 @@ if (alreadyCreditedThisMonth) {
                   (activeAccount.transactions || []).map(transaction => {
                     const isIncome =
                       transaction.type === 'transfer-in' ||
-                      transaction.type === 'savings-withdrawal' ||
-                      transaction.type === 'savings-interest'
+                      transaction.type === 'savings-withdrawal'
 
                     return (
                       <div className="verification" key={transaction.id}>
@@ -1357,22 +1506,6 @@ if (alreadyCreditedThisMonth) {
 
             <button onClick={() => setScreen('account-opened')}>
               Ver información de mi cuenta
-            </button>
-
-            <button onClick={() => setScreen('receive-money')}>
-              + Recibir dinero
-            </button>
-
-            <button onClick={() => setScreen('make-payment')}>
-              Pagar con tarjeta →
-            </button>
-
-            <button onClick={() => {
-              setSavingsAction('deposit')
-              setError('')
-              setScreen('savings')
-            }}>
-              Mi ahorro →
             </button>
 
             <button className="secondary-button" onClick={handleLogout}>
